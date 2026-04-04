@@ -1,14 +1,17 @@
 import React from "react";
-import { TextInput, View, TouchableOpacity, Text } from "react-native";
+import { View, TouchableOpacity, Text } from "react-native";
 import Svg, { Path } from "react-native-svg";
+import AppTextField from "./ui/AppTextField";
 import { styles } from "./AuthForm.styles";
 
 type AuthFormProps = {
   email: string;
   password: string;
+  confirmPassword: string;
   isSignup: boolean;
   onChangeEmail: (value: string) => void;
   onChangePassword: (value: string) => void;
+  onChangeConfirmPassword: (value: string) => void;
   onSubmit: () => void;
   onToggleMode: () => void;
   onGoogleSignIn: () => void;
@@ -18,9 +21,11 @@ type AuthFormProps = {
 export default function AuthForm({
   email,
   password,
+  confirmPassword,
   isSignup,
   onChangeEmail,
   onChangePassword,
+  onChangeConfirmPassword,
   onSubmit,
   onToggleMode,
   onGoogleSignIn,
@@ -29,30 +34,35 @@ export default function AuthForm({
   return (
     <View style={styles.card}>
       <View style={styles.form}>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            placeholder="Enter your email"
-            placeholderTextColor="#736A6A"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={onChangeEmail}
-            style={styles.input}
-          />
-        </View>
+        <AppTextField
+          label="Email"
+          placeholder="Enter your email"
+          placeholderTextColor="#736A6A"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={onChangeEmail}
+        />
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            placeholder="Enter your password"
+        <AppTextField
+          label="Password"
+          placeholder="Enter your password"
+          placeholderTextColor="#736A6A"
+          value={password}
+          onChangeText={onChangePassword}
+          isPasswordField
+        />
+
+        {isSignup ? (
+          <AppTextField
+            label="Confirm password"
+            placeholder="Re-enter your password"
             placeholderTextColor="#736A6A"
-            secureTextEntry
-            value={password}
-            onChangeText={onChangePassword}
-            style={styles.input}
+            value={confirmPassword}
+            onChangeText={onChangeConfirmPassword}
+            isPasswordField
           />
-        </View>
+        ) : null}
 
         <TouchableOpacity onPress={onSubmit} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>
@@ -60,13 +70,17 @@ export default function AuthForm({
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onToggleMode} style={styles.switchButton}>
-          <Text style={styles.switchText}>
-            {isSignup
-              ? "Already Signed Up? Login"
-              : "Don't have an account? Sign Up"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.switchContainer}>
+  <Text style={styles.switchText}>
+    {isSignup ? "Already Signed Up? " : "Don't have an account? "}
+  </Text>
+
+  <TouchableOpacity onPress={onToggleMode}>
+    <Text style={styles.switchButtonText}>
+      {isSignup ? "Login" : "Sign Up"}
+    </Text>
+  </TouchableOpacity>
+</View>
 
         <TouchableOpacity
           onPress={onGoogleSignIn}

@@ -63,4 +63,19 @@ export const styles = StyleSheet.create({
   statLabel: {
     ...appTheme.typography.label,
   },
+    passwordCard: {
+    gap: appTheme.spacing.md,
+  },
+  passwordTitle: {
+    ...appTheme.typography.subheading,
+    color: appTheme.colors.text,
+  },
+  passwordSubtitle: {
+    ...appTheme.typography.body,
+    color: appTheme.colors.mutedText,
+  },
+   scrollContent: {
+    paddingHorizontal: appTheme.spacing.lg,
+    paddingVertical: appTheme.spacing.xl,
+  },
 });

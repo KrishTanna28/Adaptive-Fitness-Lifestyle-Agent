@@ -10,7 +10,6 @@ import {
 
 import { appTheme } from "../../theme/designSystem";
 
-type AlertVariant = "info" | "success" | "warning" | "error";
 type AlertActionStyle = "primary" | "secondary";
 
 export type AppAlertAction = {
@@ -22,7 +21,6 @@ export type AppAlertAction = {
 export type AppAlertOptions = {
   title: string;
   message?: string;
-  variant?: AlertVariant;
   actions?: AppAlertAction[];
   dismissible?: boolean;
 };
@@ -39,42 +37,11 @@ type AppAlertProviderProps = {
 type StoredAlert = {
   title: string;
   message?: string;
-  variant: AlertVariant;
   actions: AppAlertAction[];
   dismissible: boolean;
 };
 
 const AppAlertContext = createContext<AppAlertContextValue | null>(null);
-
-const variantConfig: Record<
-  AlertVariant,
-  {
-    chipLabel: string;
-    chipBackground: string;
-    chipText: string;
-  }
-> = {
-  info: {
-    chipLabel: "Notice",
-    chipBackground: appTheme.colors.card,
-    chipText: appTheme.colors.text,
-  },
-  success: {
-    chipLabel: "All set",
-    chipBackground: "#DDF2D7",
-    chipText: "#4F7D49",
-  },
-  warning: {
-    chipLabel: "Please check",
-    chipBackground: appTheme.colors.primary,
-    chipText: appTheme.colors.text,
-  },
-  error: {
-    chipLabel: "Something went wrong",
-    chipBackground: "#F4DCE2",
-    chipText: "#A14A5E",
-  },
-};
 
 const friendlyErrorMap: Array<{
   match: RegExp;
@@ -112,20 +79,39 @@ const friendlyErrorMap: Array<{
     match: /sign_in_cancelled|cancelled|canceled/i,
     message: "The sign-in was cancelled before it finished.",
   },
+  {
+    match: /provider-already-linked/i,
+    message: "This account already has email and password sign-in enabled.",
+  },
+  {
+    match: /credential-already-in-use/i,
+    message: "That sign-in method is already connected to another account.",
+  },
+  {
+    match: /requires-recent-login/i,
+    message: "For security, please confirm your Google account again and retry.",
+  },
+  {
+    match: /operation-not-allowed|admin-restricted-operation/i,
+    message:
+      "Email and password sign-in is not enabled for this project yet. Please enable it in Firebase Authentication.",
+  },
 ];
 
 export function getUserFriendlyErrorMessage(
   error: unknown,
   fallback = "Something went wrong. Please try again.",
 ) {
-  const rawMessage =
-    error instanceof Error
-      ? error.message
+  const rawText =
+    typeof error === "object" && error !== null
+      ? `${String((error as { code?: string }).code ?? "")} ${String(
+          (error as { message?: string }).message ?? "",
+        )}`.trim()
       : typeof error === "string"
         ? error
         : "";
 
-  const matchedError = friendlyErrorMap.find(({ match }) => match.test(rawMessage));
+  const matchedError = friendlyErrorMap.find(({ match }) => match.test(rawText));
   return matchedError?.message ?? fallback;
 }
 
@@ -140,7 +126,6 @@ export function AppAlertProvider({ children }: AppAlertProviderProps) {
     setAlert({
       title: options.title,
       message: options.message,
-      variant: options.variant ?? "info",
       actions:
         options.actions && options.actions.length > 0
           ? options.actions.slice(0, 2)
@@ -153,8 +138,6 @@ export function AppAlertProvider({ children }: AppAlertProviderProps) {
     hideAlert();
     action.onPress?.();
   };
-
-  const activeVariant = alert ? variantConfig[alert.variant] : variantConfig.info;
 
   return (
     <AppAlertContext.Provider value={{ showAlert, hideAlert }}>
@@ -183,16 +166,6 @@ export function AppAlertProvider({ children }: AppAlertProviderProps) {
           {alert ? (
             <View style={styles.card}>
               <View style={styles.content}>
-                <View
-                  style={[
-                    styles.chip,
-                    { backgroundColor: activeVariant.chipBackground },
-                  ]}
-                >
-                  <Text style={[styles.chipText, { color: activeVariant.chipText }]}>
-                    {activeVariant.chipLabel}
-                  </Text>
-                </View>
 
                 <Text style={styles.title}>{alert.title}</Text>
 

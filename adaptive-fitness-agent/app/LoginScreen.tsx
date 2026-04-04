@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -17,26 +17,31 @@ import { auth } from "../services/firebase";
 import AuthForm from "../components/AuthForm";
 import { getUserFriendlyErrorMessage, useAppAlert } from "../components/ui/AppAlert";
 import { styles } from "./LoginScreen.styles";
+import { configureGoogleSignIn } from "../services/googleSignin";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [isSignup, setIsSignup] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const { showAlert } = useAppAlert();
 
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    });
-  }, []);
-
-  const handleAuth = async () => {
-    if (!email || !password) {
+    const handleAuth = async () => {
+    if (!email || !password || (isSignup && !confirmPassword)) {
       showAlert({
         title: "Missing fields",
-        message: "Please enter your email and password before continuing.",
-        variant: "warning",
+        message: isSignup
+          ? "Please enter your email, password, and confirm password."
+          : "Please enter your email and password before continuing.",
+      });
+      return;
+    }
+
+    if (isSignup && password !== confirmPassword) {
+      showAlert({
+        title: "Passwords don't match",
+        message: "Please make sure both password fields are the same.",
       });
       return;
     }
@@ -48,7 +53,7 @@ export default function LoginScreen() {
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
-       } catch (error) {
+    } catch (error) {
       const message = getUserFriendlyErrorMessage(
         error,
         isSignup
@@ -59,7 +64,6 @@ export default function LoginScreen() {
       showAlert({
         title: isSignup ? "Couldn't create account" : "Couldn't sign in",
         message,
-        variant: "error",
       });
     } finally {
       setLoading(false);
@@ -69,6 +73,8 @@ export default function LoginScreen() {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      configureGoogleSignIn();
+
       await GoogleSignin.hasPlayServices();
 
       await GoogleSignin.signOut();
@@ -90,7 +96,6 @@ export default function LoginScreen() {
           showAlert({
             title: "Google sign-in already running",
             message: "Please wait for the current sign-in request to finish.",
-            variant: "info",
           });
           return;
         }
@@ -98,7 +103,6 @@ export default function LoginScreen() {
           showAlert({
             title: "Google Play Services unavailable",
             message: "Google Play Services is not available on this device right now.",
-            variant: "error",
           });
           return;
         }
@@ -112,7 +116,6 @@ export default function LoginScreen() {
       showAlert({
         title: "Google sign-in failed",
         message,
-        variant: "error",
       });
 
     } finally {
@@ -142,17 +145,24 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        <AuthForm
+          <AuthForm
           email={email}
           password={password}
+          confirmPassword={confirmPassword}
           isSignup={isSignup}
           onChangeEmail={setEmail}
           onChangePassword={setPassword}
+          onChangeConfirmPassword={setConfirmPassword}
           onSubmit={handleAuth}
-          onToggleMode={() => setIsSignup((prev) => !prev)}
+          onToggleMode={() => {
+            setIsSignup((prev) => !prev);
+            setPassword("");
+            setConfirmPassword("");
+          }}
           onGoogleSignIn={handleGoogleSignIn}
           googleDisabled={loading}
         />
+
 
         {loading ? <Text style={styles.loadingText}>Please wait...</Text> : null}
       </View>

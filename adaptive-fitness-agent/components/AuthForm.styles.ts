@@ -52,6 +52,16 @@ export const styles = StyleSheet.create({
     color: appTheme.colors.mutedText,
     textAlign: "center",
   },
+  switchContainer: {
+  flexDirection: "row",
+  justifyContent: "center",
+  alignItems: "center",
+},
+switchButtonText: {
+  color: "#007AFF",
+  fontSize: 14,
+  fontWeight: "bold",
+},
   googleButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -72,4 +82,5 @@ export const styles = StyleSheet.create({
     color: appTheme.colors.text,
     fontWeight: "600",
   },
+  
 });
