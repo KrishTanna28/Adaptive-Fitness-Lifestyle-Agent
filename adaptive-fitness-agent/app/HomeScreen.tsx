@@ -10,6 +10,7 @@ import {
   type User,
 } from "firebase/auth/react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { Apple, Flame, Lightbulb, Target } from "lucide-react-native";
 
 import { auth } from "../services/firebase";
 import {
@@ -19,6 +20,7 @@ import {
 import AppButton from "../components/ui/AppButton";
 import AppCard from "../components/ui/AppCard";
 import AppTextField from "../components/ui/AppTextField";
+import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
 import { styles } from "./HomeScreen.styles";
 
@@ -28,6 +30,7 @@ type HomeScreenProps = {
 
 export default function HomeScreen({ user }: HomeScreenProps) {
   const { showAlert } = useAppAlert();
+  const goalProgressPercentage = "72%";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
@@ -167,17 +170,68 @@ export default function HomeScreen({ user }: HomeScreenProps) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.container}>
-          <AppCard variant="tinted" style={styles.heroCard}>
-            <Text style={styles.eyebrow}>Today's focus</Text>
-            <Text style={styles.title}>You're signed in and ready to train.</Text>
-            <Text style={styles.subtitle}>
-              Keep the momentum light, steady, and consistent.
-            </Text>
-          </AppCard>
-
           <AppCard style={styles.profileCard}>
             <Text style={styles.sectionLabel}>Welcome {user.displayName || "back"}!</Text>
-            <Text style={styles.email}>{user.email}</Text>
+          </AppCard>
+
+          <AppCard style={styles.stepsCard}>
+            <View style={styles.stepsRow}>
+              <View style={styles.stepsInfo}>
+                  <Text style={styles.metricValue}>6500</Text>
+                <View>
+                  <Text style={styles.metricLabel}>/10000 steps</Text>
+                </View>
+              </View>
+
+              <View style={styles.stepsProgressWrap}>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: "65%" }]} />
+                </View>
+                <Text style={styles.progressCaption}>65%</Text>
+              </View>
+            </View>
+          </AppCard>
+
+          <AppCard style={styles.metricsCard}>
+            <Text style={styles.metricsTitle}>Daily snapshot</Text>
+            <View style={styles.metricsGrid}>
+              <View style={styles.metricItem}>
+                <View style={styles.metricValueRow}>
+                  <Flame size={18} color={appTheme.colors.text} strokeWidth={2.2} />
+                  <Text style={styles.metricValue}>420 kcal</Text>
+                </View>
+                <Text style={styles.metricLabel}>Calories burned</Text>
+              </View>
+
+              <View style={styles.metricItem}>
+                <View style={styles.metricValueRow}>
+                  <Apple size={18} color={appTheme.colors.text} strokeWidth={2.2} />
+                  <Text style={styles.metricValue}>1650 kcal</Text>
+                </View>
+                <Text style={styles.metricLabel}>Calories intake</Text>
+              </View>
+            </View>
+
+            <View style={styles.goalSection}>
+              <Text style={styles.metricLabel}>Goal progress</Text>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
+              </View>
+              <View style={styles.progressValueRow}>
+                <Target size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
+                <Text style={styles.progressCaption}>{goalProgressPercentage} of daily goal</Text>
+              </View>
+            </View>
+          </AppCard>
+
+          <AppCard style={styles.suggestionCard}>
+            <View style={styles.suggestionLabelRow}>
+              <Lightbulb size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
+              <Text style={styles.suggestionLabel}>AI Suggestion</Text>
+            </View>
+            <Text style={styles.suggestionText}>
+              Walk 3500 more steps to reach your goal.
+            </Text>
           </AppCard>
 
           {shouldShowPasswordSetup ? (
@@ -214,18 +268,6 @@ export default function HomeScreen({ user }: HomeScreenProps) {
               />
             </AppCard>
           ) : null}
-
-          <View style={styles.statsRow}>
-            <AppCard style={styles.statCard}>
-              <Text style={styles.statValue}>24</Text>
-              <Text style={styles.statLabel}>Min target</Text>
-            </AppCard>
-
-            <AppCard style={styles.statCard}>
-              <Text style={styles.statValue}>Easy</Text>
-              <Text style={styles.statLabel}>Intensity</Text>
-            </AppCard>
-          </View>
 
           <AppButton title="Log out" onPress={handleLogout} />
         </View>

@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-import HomeScreen from "./HomeScreen";
+import HomeTabs from "./HomeTabs";
 import LoginScreen from "./LoginScreen";
 import PasswordSetupScreen from "./PasswordSetupScreen";
 import { useAuthUser } from "../hooks/useAuthUser";
@@ -35,7 +35,7 @@ export default function AuthGate() {
       ? "password-setup"
       : "authenticated";
 
-    return (
+  return (
     <Stack.Navigator
       key={routeState}
       initialRouteName={!user ? "Login" : needsPasswordSetup(user) ? "PasswordSetup" : "Home"}
@@ -49,7 +49,7 @@ export default function AuthGate() {
             {() => <PasswordSetupScreen user={user} />}
           </Stack.Screen>
           <Stack.Screen name="Home">
-            {() => <HomeScreen user={user} />}
+            {() => <HomeTabs user={user} />}
           </Stack.Screen>
         </>
       )}
