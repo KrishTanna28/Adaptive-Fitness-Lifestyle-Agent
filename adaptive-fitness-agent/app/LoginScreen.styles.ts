@@ -55,8 +55,9 @@ export const styles = StyleSheet.create({
     color: appTheme.colors.text,
     fontWeight: "700",
   },
-  loadingText: {
-    ...appTheme.typography.label,
-    textAlign: "center",
+  authLoadingSkeletonRow: {
+    gap: appTheme.spacing.xs,
+    alignItems: "center",
+    marginTop: appTheme.spacing.xs,
   },
 });

@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Activity, Flame, Footprints, Target } from "lucide-react-native";
 
 import AppCard from "../components/ui/AppCard";
+import AppSkeleton from "../components/ui/AppSkeleton";
 import type { LiveStepCounter } from "../hooks/useLiveStepCounter";
 import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
@@ -20,9 +21,7 @@ type ActivityTrackingScreenProps = {
 export default function ActivityTrackingScreen({
   liveStepCounter,
 }: ActivityTrackingScreenProps) {
-  const stepCountText = liveStepCounter.isLoading
-    ? "Loading..."
-    : liveStepCounter.stepsToday.toLocaleString();
+  const stepCountText = liveStepCounter.stepsToday.toLocaleString();
   const distanceText = `${liveStepCounter.distanceKm.toFixed(2)} km`;
   const caloriesText = `${liveStepCounter.caloriesBurned} kcal`;
 
@@ -42,7 +41,11 @@ export default function ActivityTrackingScreen({
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Footprints size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>{stepCountText}</Text>
+                {liveStepCounter.isLoading ? (
+                  <AppSkeleton width={92} height={22} borderRadius={10} variant="activity" />
+                ) : (
+                  <Text style={styles.valueText}>{stepCountText}</Text>
+                )}
               </View>
               <Text style={styles.labelText}>Steps</Text>
             </AppCard>
@@ -50,7 +53,11 @@ export default function ActivityTrackingScreen({
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Target size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>{distanceText}</Text>
+                {liveStepCounter.isLoading ? (
+                  <AppSkeleton width={86} height={22} borderRadius={10} variant="activity" />
+                ) : (
+                  <Text style={styles.valueText}>{distanceText}</Text>
+                )}
               </View>
               <Text style={styles.labelText}>Distance</Text>
             </AppCard>
@@ -58,7 +65,11 @@ export default function ActivityTrackingScreen({
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Flame size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>{caloriesText}</Text>
+                {liveStepCounter.isLoading ? (
+                  <AppSkeleton width={96} height={22} borderRadius={10} variant="activity" />
+                ) : (
+                  <Text style={styles.valueText}>{caloriesText}</Text>
+                )}
               </View>
               <Text style={styles.labelText}>Calories burned</Text>
             </AppCard>

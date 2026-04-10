@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { FlatList, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   EmailAuthProvider,
@@ -10,7 +10,7 @@ import {
   type User,
 } from "firebase/auth/react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import { Apple, Flame, Lightbulb, Target } from "lucide-react-native";
+import { Pizza, Flame, Lightbulb, Target } from "lucide-react-native";
 
 import { auth } from "../services/firebase";
 import {
@@ -19,6 +19,7 @@ import {
 } from "../components/ui/AppAlert";
 import AppButton from "../components/ui/AppButton";
 import AppCard from "../components/ui/AppCard";
+import AppSkeleton from "../components/ui/AppSkeleton";
 import AppTextField from "../components/ui/AppTextField";
 import type { LiveStepCounter } from "../hooks/useLiveStepCounter";
 import { appTheme } from "../theme/designSystem";
@@ -28,13 +29,36 @@ import { styles } from "./HomeScreen.styles";
 type HomeScreenProps = {
   user: User;
   liveStepCounter: LiveStepCounter;
+  isSavingStepGoal: boolean;
+  onUpdateDailyStepGoal: (goal: number) => Promise<void>;
 };
 
-export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
+const MIN_STEP_GOAL = 100;
+const MAX_STEP_GOAL = 100000;
+const STEP_GOAL_INCREMENT = 100;
+const GOAL_ROW_HEIGHT = 44;
+
+function normalizeGoalForPicker(goal: number) {
+  return Math.min(
+    MAX_STEP_GOAL,
+    Math.max(MIN_STEP_GOAL, Math.round(goal / STEP_GOAL_INCREMENT) * STEP_GOAL_INCREMENT),
+  );
+}
+
+export default function HomeScreen({
+  user,
+  liveStepCounter,
+  isSavingStepGoal,
+  onUpdateDailyStepGoal,
+}: HomeScreenProps) {
   const { showAlert } = useAppAlert();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
+  const [selectedStepGoal, setSelectedStepGoal] = useState(
+    normalizeGoalForPicker(liveStepCounter.goal),
+  );
   const [hasPasswordLogin, setHasPasswordLogin] = useState(
     user.providerData.some((provider) => provider.providerId === "password"),
   );
@@ -43,20 +67,60 @@ export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
     () => user.providerData.some((provider) => provider.providerId === "google.com"),
     [user.providerData],
   );
+  const stepGoalOptions = useMemo(
+    () =>
+      Array.from(
+        { length: Math.floor((MAX_STEP_GOAL - MIN_STEP_GOAL) / STEP_GOAL_INCREMENT) + 1 },
+        (_, index) => MIN_STEP_GOAL + index * STEP_GOAL_INCREMENT,
+      ),
+    [],
+  );
 
   const shouldShowPasswordSetup =
     hasGoogleLogin && !hasPasswordLogin && Boolean(user.email);
 
   const goalProgressPercent = Math.round(liveStepCounter.progress * 100);
   const goalProgressPercentage = `${goalProgressPercent}%` as `${number}%`;
-  const stepCountText = liveStepCounter.isLoading
-    ? "Loading..."
-    : liveStepCounter.stepsToday.toLocaleString();
+  const stepCountText = liveStepCounter.stepsToday.toLocaleString();
   const stepGoalText = `/${liveStepCounter.goal.toLocaleString()} steps`;
   const suggestionText =
     liveStepCounter.remainingSteps > 0
       ? `Walk ${liveStepCounter.remainingSteps.toLocaleString()} more steps to reach your goal.`
       : "Daily goal reached. Great consistency today.";
+  const currentGoalSelectionValue = normalizeGoalForPicker(liveStepCounter.goal);
+  const isGoalUnchanged = selectedStepGoal === currentGoalSelectionValue;
+  const selectedGoalIndex = Math.min(
+    Math.max(Math.round((selectedStepGoal - MIN_STEP_GOAL) / STEP_GOAL_INCREMENT), 0),
+    stepGoalOptions.length - 1,
+  );
+
+  useEffect(() => {
+    if (isGoalModalVisible) {
+      setSelectedStepGoal(currentGoalSelectionValue);
+    }
+  }, [isGoalModalVisible, currentGoalSelectionValue]);
+
+  const handleSaveGoal = async () => {
+    if (isGoalUnchanged) {
+      setIsGoalModalVisible(false);
+      return;
+    }
+
+    try {
+      await onUpdateDailyStepGoal(selectedStepGoal);
+      setIsGoalModalVisible(false);
+    } catch (error) {
+      const message = getUserFriendlyErrorMessage(
+        error,
+        "We couldn't update your daily goal right now. Please try again.",
+      );
+
+      showAlert({
+        title: "Couldn't update goal",
+        message,
+      });
+    }
+  };
 
   const linkEmailPassword = async (password: string) => {
     const currentUser = auth.currentUser;
@@ -186,23 +250,46 @@ export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
             <Text style={styles.sectionLabel}>Welcome {user.displayName || "back"}!</Text>
           </AppCard>
 
-          <AppCard style={styles.stepsCard}>
-            <View style={styles.stepsRow}>
-              <View style={styles.stepsInfo}>
-                <Text style={styles.metricValue}>{stepCountText}</Text>
-                <View>
-                  <Text style={styles.metricLabel}>{stepGoalText}</Text>
+          <Pressable
+            onPress={() => setIsGoalModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Change daily step goal"
+          >
+            <AppCard style={styles.stepsCard}>
+              <View style={styles.stepsRow}>
+                <View style={styles.stepsInfo}>
+                  {liveStepCounter.isLoading ? (
+                    <View style={styles.stepsSkeletonWrap}>
+                      <AppSkeleton width={156} height={42} borderRadius={12} variant="home" />
+                      <AppSkeleton width={124} height={16} borderRadius={8} variant="home" />
+                    </View>
+                  ) : (
+                    <Text style={styles.stepsValue}>{stepCountText}</Text>
+                  )}
+                  {!liveStepCounter.isLoading ? (
+                    <View>
+                      <Text style={styles.metricLabel}>{stepGoalText}</Text>
+                    </View>
+                  ) : null}
                 </View>
-              </View>
 
-              <View style={styles.stepsProgressWrap}>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
+                <View style={styles.stepsProgressWrap}>
+                  <View style={styles.progressTrack}>
+                    {liveStepCounter.isLoading ? (
+                      <AppSkeleton width="56%" height={10} borderRadius={999} variant="home" />
+                    ) : (
+                      <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
+                    )}
+                  </View>
+                  {liveStepCounter.isLoading ? (
+                    <AppSkeleton width={42} height={14} borderRadius={7} variant="home" />
+                  ) : (
+                    <Text style={styles.progressCaption}>{goalProgressPercentage}</Text>
+                  )}
                 </View>
-                <Text style={styles.progressCaption}>{goalProgressPercentage}</Text>
               </View>
-            </View>
-          </AppCard>
+            </AppCard>
+          </Pressable>
 
           <AppCard style={styles.metricsCard}>
             <Text style={styles.metricsTitle}>Daily snapshot</Text>
@@ -217,7 +304,7 @@ export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
 
               <View style={styles.metricItem}>
                 <View style={styles.metricValueRow}>
-                  <Apple size={18} color={appTheme.colors.text} strokeWidth={2.2} />
+                  <Pizza size={18} color={appTheme.colors.text} strokeWidth={2.2} />
                   <Text style={styles.metricValue}>1650 kcal</Text>
                 </View>
                 <Text style={styles.metricLabel}>Calories intake</Text>
@@ -282,6 +369,101 @@ export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
           <AppButton title="Log out" onPress={handleLogout} />
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isGoalModalVisible}
+        onRequestClose={() => {
+          if (!isSavingStepGoal) {
+            setIsGoalModalVisible(false);
+          }
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={styles.modalDismissLayer}
+            onPress={() => {
+              if (!isSavingStepGoal) {
+                setIsGoalModalVisible(false);
+              }
+            }}
+          />
+
+          <View style={styles.goalModalCard}>
+            <Text style={styles.goalModalTitle}>Choose your daily step goal</Text>
+
+            <View style={styles.goalListContainer}>
+              <FlatList
+                data={stepGoalOptions}
+                keyExtractor={(goal) => String(goal)}
+                contentContainerStyle={styles.goalListContent}
+                showsVerticalScrollIndicator
+                initialScrollIndex={selectedGoalIndex}
+                getItemLayout={(_data, index) => ({
+                  length: GOAL_ROW_HEIGHT,
+                  offset: GOAL_ROW_HEIGHT * index,
+                  index,
+                })}
+                renderItem={({ item: goal }) => {
+                  const isSelected = goal === selectedStepGoal;
+
+                  return (
+                    <Pressable
+                      style={[
+                        styles.goalListItem,
+                        isSelected ? styles.goalListItemSelected : null,
+                      ]}
+                      onPress={() => {
+                        setSelectedStepGoal(goal);
+                      }}
+                      disabled={isSavingStepGoal}
+                    >
+                      <Text
+                        style={[
+                          styles.goalListItemText,
+                          isSelected ? styles.goalListItemTextSelected : null,
+                        ]}
+                      >
+                        {goal.toLocaleString()} steps
+                      </Text>
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+
+            <View style={styles.goalModalActionsRow}>
+              <Pressable
+                style={styles.goalModalCloseButton}
+                onPress={() => setIsGoalModalVisible(false)}
+                disabled={isSavingStepGoal}
+              >
+                <Text style={styles.goalModalCloseText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.goalModalSaveButton,
+                  isSavingStepGoal || isGoalUnchanged
+                    ? styles.goalModalSaveButtonDisabled
+                    : null,
+                ]}
+                onPress={() => {
+                  handleSaveGoal().catch(() => {
+                    // handled in handleSaveGoal
+                  });
+                }}
+                disabled={isSavingStepGoal || isGoalUnchanged}
+              >
+                <Text style={styles.goalModalSaveText}>
+                  {isSavingStepGoal ? "Saving..." : "Save"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

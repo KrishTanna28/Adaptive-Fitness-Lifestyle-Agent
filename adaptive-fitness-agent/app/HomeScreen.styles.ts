@@ -17,6 +17,9 @@ export const styles = StyleSheet.create({
   stepsInfo: {
     gap: appTheme.spacing.xs,
   },
+  stepsSkeletonWrap: {
+    gap: appTheme.spacing.xs,
+  },
   stepsProgressWrap: {
     flex: 1,
     maxWidth: 170,
@@ -53,6 +56,12 @@ export const styles = StyleSheet.create({
   metricValue: {
     ...appTheme.typography.subheading,
     color: appTheme.colors.text,
+  },
+  stepsValue: {
+    ...appTheme.typography.subheading,
+    color: appTheme.colors.text,
+    fontSize: 30,
+    fontWeight: "600",
   },
   metricLabel: {
     ...appTheme.typography.label,
@@ -172,5 +181,93 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: appTheme.spacing.lg,
     paddingVertical: appTheme.spacing.xl,
+  },
+  modalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(21, 17, 19, 0.45)",
+    paddingHorizontal: appTheme.spacing.lg,
+  },
+  modalDismissLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  goalModalCard: {
+    width: "100%",
+    borderRadius: appTheme.radii.lg,
+    backgroundColor: appTheme.colors.card,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    padding: appTheme.spacing.lg,
+    gap: appTheme.spacing.md,
+  },
+  goalModalTitle: {
+    ...appTheme.typography.subheading,
+    color: appTheme.colors.text,
+  },
+  goalModalSubtitle: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.mutedText,
+  },
+  goalListContainer: {
+    maxHeight: 320,
+    borderRadius: appTheme.radii.md,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    backgroundColor: appTheme.colors.background,
+  },
+  goalListContent: {
+    paddingVertical: appTheme.spacing.xs,
+  },
+  goalListItem: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: appTheme.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: appTheme.colors.border,
+  },
+  goalListItemSelected: {
+    backgroundColor: appTheme.colors.cardAlt,
+  },
+  goalListItemText: {
+    ...appTheme.typography.body,
+    color: appTheme.colors.text,
+    fontWeight: "600",
+  },
+  goalListItemTextSelected: {
+    color: appTheme.colors.text,
+    fontWeight: "800",
+  },
+  goalModalActionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: appTheme.spacing.sm,
+  },
+  goalModalCloseButton: {
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  goalModalCloseText: {
+    ...appTheme.typography.label,
+    color: appTheme.colors.mutedText,
+  },
+  goalModalSaveButton: {
+    borderRadius: appTheme.radii.pill,
+    backgroundColor: appTheme.colors.text,
+    paddingHorizontal: appTheme.spacing.md,
+    paddingVertical: appTheme.spacing.xs,
+  },
+  goalModalSaveButtonDisabled: {
+    opacity: 0.45,
+  },
+  goalModalSaveText: {
+    ...appTheme.typography.label,
+    color: appTheme.colors.background,
+    fontWeight: "800",
   },
 });

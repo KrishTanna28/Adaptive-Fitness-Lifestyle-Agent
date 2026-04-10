@@ -16,6 +16,7 @@ import {
 import { auth } from "../services/firebase";
 import AuthForm from "../components/AuthForm";
 import { getUserFriendlyErrorMessage, useAppAlert } from "../components/ui/AppAlert";
+import AppSkeleton from "../components/ui/AppSkeleton";
 import { styles } from "./LoginScreen.styles";
 import { configureGoogleSignIn } from "../services/googleSignin";
 
@@ -162,9 +163,12 @@ export default function LoginScreen() {
           onGoogleSignIn={handleGoogleSignIn}
           googleDisabled={loading}
         />
-
-
-        {loading ? <Text style={styles.loadingText}>Please wait...</Text> : null}
+        {loading ? (
+          <View style={styles.authLoadingSkeletonRow}>
+            <AppSkeleton width="72%" height={12} borderRadius={8} variant="auth" />
+            <AppSkeleton width="48%" height={12} borderRadius={8} variant="auth" />
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
