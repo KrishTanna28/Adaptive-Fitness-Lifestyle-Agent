@@ -20,17 +20,18 @@ import {
 import AppButton from "../components/ui/AppButton";
 import AppCard from "../components/ui/AppCard";
 import AppTextField from "../components/ui/AppTextField";
+import type { LiveStepCounter } from "../hooks/useLiveStepCounter";
 import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
 import { styles } from "./HomeScreen.styles";
 
 type HomeScreenProps = {
   user: User;
+  liveStepCounter: LiveStepCounter;
 };
 
-export default function HomeScreen({ user }: HomeScreenProps) {
+export default function HomeScreen({ user, liveStepCounter }: HomeScreenProps) {
   const { showAlert } = useAppAlert();
-  const goalProgressPercentage = "72%";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
@@ -45,6 +46,17 @@ export default function HomeScreen({ user }: HomeScreenProps) {
 
   const shouldShowPasswordSetup =
     hasGoogleLogin && !hasPasswordLogin && Boolean(user.email);
+
+  const goalProgressPercent = Math.round(liveStepCounter.progress * 100);
+  const goalProgressPercentage = `${goalProgressPercent}%` as `${number}%`;
+  const stepCountText = liveStepCounter.isLoading
+    ? "Loading..."
+    : liveStepCounter.stepsToday.toLocaleString();
+  const stepGoalText = `/${liveStepCounter.goal.toLocaleString()} steps`;
+  const suggestionText =
+    liveStepCounter.remainingSteps > 0
+      ? `Walk ${liveStepCounter.remainingSteps.toLocaleString()} more steps to reach your goal.`
+      : "Daily goal reached. Great consistency today.";
 
   const linkEmailPassword = async (password: string) => {
     const currentUser = auth.currentUser;
@@ -177,17 +189,17 @@ export default function HomeScreen({ user }: HomeScreenProps) {
           <AppCard style={styles.stepsCard}>
             <View style={styles.stepsRow}>
               <View style={styles.stepsInfo}>
-                  <Text style={styles.metricValue}>6500</Text>
+                <Text style={styles.metricValue}>{stepCountText}</Text>
                 <View>
-                  <Text style={styles.metricLabel}>/10000 steps</Text>
+                  <Text style={styles.metricLabel}>{stepGoalText}</Text>
                 </View>
               </View>
 
               <View style={styles.stepsProgressWrap}>
                 <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: "65%" }]} />
+                  <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
                 </View>
-                <Text style={styles.progressCaption}>65%</Text>
+                <Text style={styles.progressCaption}>{goalProgressPercentage}</Text>
               </View>
             </View>
           </AppCard>
@@ -198,7 +210,7 @@ export default function HomeScreen({ user }: HomeScreenProps) {
               <View style={styles.metricItem}>
                 <View style={styles.metricValueRow}>
                   <Flame size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                  <Text style={styles.metricValue}>420 kcal</Text>
+                  <Text style={styles.metricValue}>{liveStepCounter.caloriesBurned} kcal</Text>
                 </View>
                 <Text style={styles.metricLabel}>Calories burned</Text>
               </View>
@@ -229,9 +241,7 @@ export default function HomeScreen({ user }: HomeScreenProps) {
               <Lightbulb size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
               <Text style={styles.suggestionLabel}>AI Suggestion</Text>
             </View>
-            <Text style={styles.suggestionText}>
-              Walk 3500 more steps to reach your goal.
-            </Text>
+            <Text style={styles.suggestionText}>{suggestionText}</Text>
           </AppCard>
 
           {shouldShowPasswordSetup ? (

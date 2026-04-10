@@ -9,6 +9,7 @@ import HomeScreen from "./HomeScreen";
 import NutritionScreen from "./NutritionScreen";
 import ProfileScreen from "./ProfileScreen";
 import WorkoutScreen from "./WorkoutScreen";
+import useLiveStepCounter from "../hooks/useLiveStepCounter";
 import { appTheme } from "../theme/designSystem";
 
 type HomeTabParamList = {
@@ -27,6 +28,8 @@ type HomeTabsProps = {
 const Tab = createBottomTabNavigator<HomeTabParamList>();
 
 export default function HomeTabs({ user }: HomeTabsProps) {
+  const liveStepCounter = useLiveStepCounter();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -51,18 +54,19 @@ export default function HomeTabs({ user }: HomeTabsProps) {
           ),
         }}
       >
-        {() => <HomeScreen user={user} />}
+        {() => <HomeScreen user={user} liveStepCounter={liveStepCounter} />}
       </Tab.Screen>
 
       <Tab.Screen
         name="Activity"
-        component={ActivityTrackingScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
             <Activity size={size} color={color} strokeWidth={2.2} />
           ),
         }}
-      />
+      >
+        {() => <ActivityTrackingScreen liveStepCounter={liveStepCounter} />}
+      </Tab.Screen>
 
       <Tab.Screen
         name="Workout"

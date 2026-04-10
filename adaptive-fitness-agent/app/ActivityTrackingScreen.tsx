@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Activity, Flame, Footprints, Target } from "lucide-react-native";
 
 import AppCard from "../components/ui/AppCard";
+import type { LiveStepCounter } from "../hooks/useLiveStepCounter";
 import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
 import { styles } from "./ActivityTrackingScreen.styles";
@@ -12,7 +13,19 @@ const dailyTrend = [56, 71, 64, 82, 77, 90, 72];
 const weeklyTrend = [48, 62, 59, 74, 81, 69, 85];
 const monthlyTrend = [45, 52, 67, 61, 70, 76, 81, 73];
 
-export default function ActivityTrackingScreen() {
+type ActivityTrackingScreenProps = {
+  liveStepCounter: LiveStepCounter;
+};
+
+export default function ActivityTrackingScreen({
+  liveStepCounter,
+}: ActivityTrackingScreenProps) {
+  const stepCountText = liveStepCounter.isLoading
+    ? "Loading..."
+    : liveStepCounter.stepsToday.toLocaleString();
+  const distanceText = `${liveStepCounter.distanceKm.toFixed(2)} km`;
+  const caloriesText = `${liveStepCounter.caloriesBurned} kcal`;
+
   return (
     <SafeAreaView style={globalStyles.screen}>
       <ScrollView
@@ -29,15 +42,15 @@ export default function ActivityTrackingScreen() {
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Footprints size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>6,500</Text>
+                <Text style={styles.valueText}>{stepCountText}</Text>
               </View>
-              <Text style={styles.labelText}>Steps (live)</Text>
+              <Text style={styles.labelText}>Steps</Text>
             </AppCard>
 
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Target size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>4.8 km</Text>
+                <Text style={styles.valueText}>{distanceText}</Text>
               </View>
               <Text style={styles.labelText}>Distance</Text>
             </AppCard>
@@ -45,7 +58,7 @@ export default function ActivityTrackingScreen() {
             <AppCard style={styles.quickStatCard}>
               <View style={styles.valueRow}>
                 <Flame size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                <Text style={styles.valueText}>420 kcal</Text>
+                <Text style={styles.valueText}>{caloriesText}</Text>
               </View>
               <Text style={styles.labelText}>Calories burned</Text>
             </AppCard>

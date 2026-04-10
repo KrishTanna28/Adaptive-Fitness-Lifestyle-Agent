@@ -3,7 +3,20 @@
     "name": "adaptive-fitness-agent",
     "slug": "adaptive-fitness-agent",
     "scheme": "adaptivefitnessagent",
-    "plugins": ["@react-native-google-signin/google-signin"],
+    "plugins": [
+      "@react-native-google-signin/google-signin",
+      "expo-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,11 +29,18 @@
     },
     "ios": {
       "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "NSMotionUsageDescription": "This app uses motion data to count your steps in real time."
+      },
       "supportsTablet": true,
       "bundleIdentifier": "com.krish.adaptivefitnessagent"
     },
     "android": {
       "package": "com.krish.adaptivefitnessagent",
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.health.READ_STEPS"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -31,6 +51,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
+    }
   }
 }
