@@ -463,8 +463,8 @@ export default function useLiveStepCounter(goal = DAILY_STEP_GOAL): LiveStepCoun
 
   return useMemo(() => {
     const stepsToday = Math.max(0, baselineSteps + liveStepDelta);
-    const progress = Math.min(1, stepsToday / goal);
-
+const safeGoal = Math.max(1, goal);
+const progress = stepsToday / safeGoal;
     return {
       stepsToday,
       goal,

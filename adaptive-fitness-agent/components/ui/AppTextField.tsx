@@ -20,6 +20,7 @@ export default function AppTextField({
   style,
   isPasswordField = false,
   secureTextEntry,
+  placeholderTextColor,
   ...props
 }: AppTextFieldProps) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -37,6 +38,7 @@ export default function AppTextField({
           style={[styles.input, isPasswordField && styles.inputWithButton, style]}
           secureTextEntry={shouldHideText}
           {...props}
+          placeholderTextColor={placeholderTextColor ?? appTheme.colors.mutedText}
         />
 
         {isPasswordField ? (

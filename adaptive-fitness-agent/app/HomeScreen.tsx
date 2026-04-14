@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { FlatList, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -6,11 +6,12 @@ import {
   GoogleAuthProvider,
   linkWithCredential,
   reauthenticateWithCredential,
-  signOut,
   type User,
 } from "firebase/auth/react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { Pizza, Flame, Lightbulb, Target } from "lucide-react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { getTodayDateKey, loadDailyNutritionLog } from "../services/nutritionLog";
 
 import { auth } from "../services/firebase";
 import {
@@ -80,7 +81,9 @@ export default function HomeScreen({
     hasGoogleLogin && !hasPasswordLogin && Boolean(user.email);
 
   const goalProgressPercent = Math.round(liveStepCounter.progress * 100);
-  const goalProgressPercentage = `${goalProgressPercent}%` as `${number}%`;
+  const goalProgressBarPercent = Math.min(goalProgressPercent, 100);
+  const goalProgressBarWidth = `${goalProgressBarPercent}%` as `${number}%`;
+  const goalProgressLabel = `${goalProgressPercent}%`;
   const stepCountText = liveStepCounter.stepsToday.toLocaleString();
   const stepGoalText = `/${liveStepCounter.goal.toLocaleString()} steps`;
   const suggestionText =
@@ -92,6 +95,32 @@ export default function HomeScreen({
   const selectedGoalIndex = Math.min(
     Math.max(Math.round((selectedStepGoal - MIN_STEP_GOAL) / STEP_GOAL_INCREMENT), 0),
     stepGoalOptions.length - 1,
+  );
+  const [caloriesIntake, setCaloriesIntake] = useState(0);
+  const [isLoadingCaloriesIntake, setIsLoadingCaloriesIntake] = useState(false);
+  const loadCaloriesIntake = useCallback(async () => {
+    setIsLoadingCaloriesIntake(true);
+    try {
+      const todayKey = getTodayDateKey();
+      const log = await loadDailyNutritionLog(user.uid, todayKey);
+      const totalCalories = log.entries.reduce((sum, entry) => {
+        const value = Number(entry.calories);
+        return Number.isFinite(value) ? sum + value : sum;
+      }, 0)
+      setCaloriesIntake(Math.round(totalCalories));
+    } catch (error) {
+      setCaloriesIntake(0);
+    } finally {
+      setIsLoadingCaloriesIntake(false);
+    }
+  }, [user.uid]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadCaloriesIntake().catch(() => {
+        setIsLoadingCaloriesIntake(false);
+      });
+    }, [loadCaloriesIntake])
   );
 
   useEffect(() => {
@@ -221,23 +250,6 @@ export default function HomeScreen({
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      await GoogleSignin.signOut();
-    } catch (error) {
-      const message = getUserFriendlyErrorMessage(
-        error,
-        "We couldn't log you out right now. Please try again.",
-      );
-
-      showAlert({
-        title: "Couldn't log out",
-        message,
-      });
-    }
-  };
-
   return (
     <SafeAreaView style={globalStyles.screen}>
       <ScrollView
@@ -278,13 +290,13 @@ export default function HomeScreen({
                     {liveStepCounter.isLoading ? (
                       <AppSkeleton width="56%" height={10} borderRadius={999} variant="home" />
                     ) : (
-                      <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
+                      <View style={[styles.progressFill, { width: goalProgressBarWidth }]} />
                     )}
                   </View>
                   {liveStepCounter.isLoading ? (
                     <AppSkeleton width={42} height={14} borderRadius={7} variant="home" />
                   ) : (
-                    <Text style={styles.progressCaption}>{goalProgressPercentage}</Text>
+                    <Text style={styles.progressCaption}>{goalProgressLabel}</Text>
                   )}
                 </View>
               </View>
@@ -305,7 +317,7 @@ export default function HomeScreen({
               <View style={styles.metricItem}>
                 <View style={styles.metricValueRow}>
                   <Pizza size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                  <Text style={styles.metricValue}>1650 kcal</Text>
+                  <Text style={styles.metricValue}>{isLoadingCaloriesIntake ? 0 : caloriesIntake}</Text>
                 </View>
                 <Text style={styles.metricLabel}>Calories intake</Text>
               </View>
@@ -314,11 +326,11 @@ export default function HomeScreen({
             <View style={styles.goalSection}>
               <Text style={styles.metricLabel}>Goal progress</Text>
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: goalProgressPercentage }]} />
+                <View style={[styles.progressFill, { width: goalProgressBarWidth }]} />
               </View>
               <View style={styles.progressValueRow}>
                 <Target size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
-                <Text style={styles.progressCaption}>{goalProgressPercentage} of daily goal</Text>
+                <Text style={styles.progressCaption}>{goalProgressLabel} of daily goal</Text>
               </View>
             </View>
           </AppCard>
@@ -365,8 +377,6 @@ export default function HomeScreen({
               />
             </AppCard>
           ) : null}
-
-          <AppButton title="Log out" onPress={handleLogout} />
         </View>
       </ScrollView>
 

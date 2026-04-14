@@ -163,12 +163,6 @@ export default function LoginScreen() {
           onGoogleSignIn={handleGoogleSignIn}
           googleDisabled={loading}
         />
-        {loading ? (
-          <View style={styles.authLoadingSkeletonRow}>
-            <AppSkeleton width="72%" height={12} borderRadius={8} variant="auth" />
-            <AppSkeleton width="48%" height={12} borderRadius={8} variant="auth" />
-          </View>
-        ) : null}
       </View>
     </SafeAreaView>
   );
