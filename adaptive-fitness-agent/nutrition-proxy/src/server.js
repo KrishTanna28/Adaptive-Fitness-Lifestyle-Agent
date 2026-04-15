@@ -27,6 +27,7 @@ const REDIS_KEY_PREFIX = (process.env.REDIS_KEY_PREFIX ?? "adaptive_fitness:nutr
 const REDIS_CONNECT_TIMEOUT_MS = toPositiveInt(process.env.REDIS_CONNECT_TIMEOUT_MS, 5000);
 const REDIS_SOURCE_TTL_SECONDS = toPositiveInt(process.env.REDIS_SOURCE_TTL_SECONDS, 3600);
 const REDIS_SEARCH_TTL_SECONDS = toPositiveInt(process.env.REDIS_SEARCH_TTL_SECONDS, 300);
+const CACHE_SCHEMA_VERSION = "v3";
 const CACHE_ENABLED =
   String(process.env.REDIS_CACHE_ENABLED ?? "true").toLowerCase() !== "false";
 
@@ -43,7 +44,7 @@ function normalizeKeyPart(value) {
 }
 
 function buildRedisKey(parts) {
-  return [REDIS_KEY_PREFIX, ...parts.map((part) => normalizeKeyPart(part))].join(":");
+  return [REDIS_KEY_PREFIX, CACHE_SCHEMA_VERSION, ...parts.map((part) => normalizeKeyPart(part))].join(":");
 }
 
 async function initRedis() {
@@ -117,6 +118,68 @@ function parseServingSizeInGrams(value) {
   return grams;
 }
 
+function parseServingSizeInMl(value) {
+  if (!value) return undefined;
+  const match = String(value).match(/(\d+(?:\.\d+)?)\s*(ml|milliliter|millilitre|l|liter|litre)\b/i);
+  if (!match) return undefined;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) return undefined;
+  const unit = String(match[2]).toLowerCase();
+  return unit === "l" || unit === "liter" || unit === "litre" ? amount * 1000 : amount;
+}
+
+function parseServingQuantityToMl(quantity, unit) {
+  const q = Number(quantity);
+  if (!Number.isFinite(q) || q <= 0) return undefined;
+
+  const normalizedUnit = String(unit ?? "").trim().toLowerCase();
+  if (normalizedUnit === "ml" || normalizedUnit === "milliliter" || normalizedUnit === "millilitre") {
+    return q;
+  }
+
+  if (normalizedUnit === "l" || normalizedUnit === "liter" || normalizedUnit === "litre") {
+    return q * 1000;
+  }
+
+  return undefined;
+}
+
+function parseServingQuantityToGrams(quantity, unit) {
+  const q = Number(quantity);
+  if (!Number.isFinite(q) || q <= 0) return undefined;
+
+  const normalizedUnit = String(unit ?? "").trim().toLowerCase();
+  if (normalizedUnit === "g" || normalizedUnit === "gram" || normalizedUnit === "grams") {
+    return q;
+  }
+
+  if (normalizedUnit === "oz" || normalizedUnit === "ounce" || normalizedUnit === "ounces") {
+    return q * 28.3495;
+  }
+
+  return undefined;
+}
+
+function normalizeOffNutritionDataPer(value) {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return undefined;
+  if (normalized === "serving") return "serving";
+  if (normalized === "100ml") return "100ml";
+  if (normalized === "100g") return "100g";
+  return undefined;
+}
+
+function toMilligrams(value, unit, fallback = 0) {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+
+  const normalized = String(unit ?? "").trim().toLowerCase();
+  if (normalized === "g") return n * 1000;
+  if (normalized === "mg" || normalized === "") return n;
+  if (normalized === "ug" || normalized === "µg") return n / 1000;
+  return n;
+}
+
 function pickUsdaNutrient(foodNutrients, nutrientNumber, nameHint) {
   const nutrients = Array.isArray(foodNutrients) ? foodNutrients : [];
   const byNumber = nutrients.find((n) => n?.nutrientNumber === nutrientNumber);
@@ -149,7 +212,7 @@ async function searchUsda(query, pageSize) {
       body: JSON.stringify({
         query,
         pageSize,
-        dataType: ["Foundation", "SR Legacy", "Survey (FNDDS)"],
+        dataType: ["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"],
       }),
     },
   );
@@ -166,30 +229,46 @@ async function searchUsda(query, pageSize) {
       const name = String(food.description ?? "").trim();
       if (!name) return null;
 
+      const servingUnit = String(food.servingSizeUnit ?? "").trim();
+      const servingUnitNormalized = servingUnit.toLowerCase();
+      const servingSizeValue = toNumber(food.servingSize, 0);
+
       const servingSizeGrams =
-        String(food.servingSizeUnit ?? "").toLowerCase() === "g"
-          ? toNumber(food.servingSize, 0)
+        servingSizeValue > 0 &&
+        (servingUnitNormalized === "g" ||
+          servingUnitNormalized === "gram" ||
+          servingUnitNormalized === "grams")
+          ? servingSizeValue
           : undefined;
 
-      const servingUnit = String(food.servingSizeUnit ?? "").trim();
+      const servingSizeMl = parseServingQuantityToMl(food.servingSize, food.servingSizeUnit);
+
       const servingText =
         servingSizeValue > 0 && servingUnit
           ? `${servingSizeValue} ${servingUnit}`
           : undefined;
 
+      const isBranded = String(food.dataType ?? "").trim().toLowerCase() === "branded";
+      const nutrientBasis = isBranded && servingSizeMl ? "100ml" : "100g";
+
       return {
-        id: `usda-${food.fdcId}`,
+        id: "usda-" + String(food.fdcId),
         name,
         brand: food.brandOwner ? String(food.brandOwner) : undefined,
         source: "USDA",
+        nutrientBasis,
         caloriesPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "208", "energy"), 0),
         proteinPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "203", "protein"), 0),
         carbsPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "205", "carbohydrate"), 0),
         fatPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "204", "total lipid"), 0),
-        servingSizeGrams:
-          String(food.servingSizeUnit ?? "").toLowerCase() === "g" && servingSizeValue > 0
-            ? servingSizeValue
-            : undefined,
+        fiberPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "291", "fiber"), 0),
+        sodiumMgPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "307", "sodium"), 0),
+        potassiumMgPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "306", "potassium"), 0),
+        calciumMgPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "301", "calcium"), 0),
+        ironMgPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "303", "iron"), 0),
+        vitaminCMgPer100g: toNumber(pickUsdaNutrient(food.foodNutrients, "401", "vitamin c"), 0),
+        servingSizeGrams,
+        servingSizeMl,
         servingText,
       };
     })
@@ -216,7 +295,7 @@ async function searchOpenFoodFacts(query, pageSize) {
     `?search_terms=${encodeURIComponent(query)}` +
     "&search_simple=1&action=process&json=1" +
     `&page_size=${encodeURIComponent(String(pageSize))}` +
-    "&fields=code,product_name,brands,serving_size,nutriments,image_front_small_url";
+    "&fields=code,product_name,brands,serving_size,serving_quantity,serving_quantity_unit,nutrition_data_per,quantity,nutriments,image_front_small_url";
 
   const response = await fetch(url, {
     headers: {
@@ -239,18 +318,128 @@ async function searchOpenFoodFacts(query, pageSize) {
 
       const nutriments = product.nutriments ?? {};
       const code = String(product.code ?? "").trim();
+      const servingSizeGramsFromText = parseServingSizeInGrams(product.serving_size);
+      const servingSizeGramsFromQuantity = parseServingQuantityToGrams(
+        product.serving_quantity,
+        product.serving_quantity_unit,
+      );
+      const servingSizeGrams = servingSizeGramsFromText ?? servingSizeGramsFromQuantity;
+
+      const servingSizeMlFromText = parseServingSizeInMl(product.serving_size);
+      const servingSizeMlFromQuantity = parseServingQuantityToMl(
+        product.serving_quantity,
+        product.serving_quantity_unit,
+      );
+      const servingSizeMl = servingSizeMlFromText ?? servingSizeMlFromQuantity;
+      const servingText =
+        (product.serving_size ? String(product.serving_size).trim() : "") ||
+        (product.serving_quantity && product.serving_quantity_unit
+          ? `${product.serving_quantity} ${product.serving_quantity_unit}`
+          : "") ||
+        (product.quantity ? String(product.quantity).trim() : "") ||
+        undefined;
+
+      const hasPer100ml = [
+        nutriments["energy-kcal_100ml"],
+        nutriments.proteins_100ml,
+        nutriments.carbohydrates_100ml,
+        nutriments.fat_100ml,
+        nutriments.fiber_100ml,
+        nutriments.sodium_100ml,
+        nutriments.potassium_100ml,
+        nutriments.calcium_100ml,
+        nutriments.iron_100ml,
+        nutriments["vitamin-c_100ml"],
+      ].some((value) => Number.isFinite(Number(value)));
+
+      const nutritionDataPer = normalizeOffNutritionDataPer(product.nutrition_data_per);
+
+      let basisFromDataPer;
+      if (nutritionDataPer === "100ml") {
+        basisFromDataPer = "100ml";
+      } else if (nutritionDataPer === "100g") {
+        basisFromDataPer = "100g";
+      } else if (nutritionDataPer === "serving") {
+        if (servingSizeMl && !servingSizeGrams) {
+          basisFromDataPer = "100ml";
+        } else if (servingSizeGrams) {
+          basisFromDataPer = "100g";
+        }
+      }
+
+      const nutrientBasis =
+        basisFromDataPer ??
+        (hasPer100ml ? "100ml" : servingSizeMl && !servingSizeGrams ? "100ml" : "100g");
 
       return {
         id: code ? `off-${code}` : `off-${name.toLowerCase().replace(/\s+/g, "-")}`,
         name,
         brand: product.brands ? String(product.brands) : undefined,
         source: "OpenFoodFacts",
-        caloriesPer100g: toNumber(nutriments["energy-kcal_100g"], 0),
-        proteinPer100g: toNumber(nutriments.proteins_100g, 0),
-        carbsPer100g: toNumber(nutriments.carbohydrates_100g, 0),
-        fatPer100g: toNumber(nutriments.fat_100g, 0),
-        servingSizeGrams: parseServingSizeInGrams(product.serving_size),
-        servingText: product.serving_size ? String(product.serving_size) : undefined,
+        nutrientBasis,
+        caloriesPer100g:
+          nutrientBasis === "100ml"
+            ? toNumber(nutriments["energy-kcal_100ml"], toNumber(nutriments["energy-kcal_100g"], 0))
+            : toNumber(nutriments["energy-kcal_100g"], 0),
+        proteinPer100g:
+          nutrientBasis === "100ml"
+            ? toNumber(nutriments.proteins_100ml, toNumber(nutriments.proteins_100g, 0))
+            : toNumber(nutriments.proteins_100g, 0),
+        carbsPer100g:
+          nutrientBasis === "100ml"
+            ? toNumber(nutriments.carbohydrates_100ml, toNumber(nutriments.carbohydrates_100g, 0))
+            : toNumber(nutriments.carbohydrates_100g, 0),
+        fatPer100g:
+          nutrientBasis === "100ml"
+            ? toNumber(nutriments.fat_100ml, toNumber(nutriments.fat_100g, 0))
+            : toNumber(nutriments.fat_100g, 0),
+        fiberPer100g:
+          nutrientBasis === "100ml"
+            ? toNumber(nutriments.fiber_100ml, toNumber(nutriments.fiber_100g, 0))
+            : toNumber(nutriments.fiber_100g, 0),
+        sodiumMgPer100g:
+          nutrientBasis === "100ml"
+            ? toMilligrams(
+                nutriments.sodium_100ml,
+                nutriments.sodium_unit ?? "g",
+                toMilligrams(nutriments.sodium_100g, nutriments.sodium_unit ?? "g", 0),
+              )
+            : toMilligrams(nutriments.sodium_100g, nutriments.sodium_unit ?? "g", 0),
+        potassiumMgPer100g:
+          nutrientBasis === "100ml"
+            ? toMilligrams(
+                nutriments.potassium_100ml,
+                nutriments.potassium_unit ?? "mg",
+                toMilligrams(nutriments.potassium_100g, nutriments.potassium_unit ?? "mg", 0),
+              )
+            : toMilligrams(nutriments.potassium_100g, nutriments.potassium_unit ?? "mg", 0),
+        calciumMgPer100g:
+          nutrientBasis === "100ml"
+            ? toMilligrams(
+                nutriments.calcium_100ml,
+                nutriments.calcium_unit ?? "mg",
+                toMilligrams(nutriments.calcium_100g, nutriments.calcium_unit ?? "mg", 0),
+              )
+            : toMilligrams(nutriments.calcium_100g, nutriments.calcium_unit ?? "mg", 0),
+        ironMgPer100g:
+          nutrientBasis === "100ml"
+            ? toMilligrams(
+                nutriments.iron_100ml,
+                nutriments.iron_unit ?? "mg",
+                toMilligrams(nutriments.iron_100g, nutriments.iron_unit ?? "mg", 0),
+              )
+            : toMilligrams(nutriments.iron_100g, nutriments.iron_unit ?? "mg", 0),
+        vitaminCMgPer100g:
+          nutrientBasis === "100ml"
+            ? toMilligrams(
+                nutriments["vitamin-c_100ml"],
+                nutriments["vitamin-c_unit"] ?? "mg",
+                toMilligrams(nutriments["vitamin-c_100g"], nutriments["vitamin-c_unit"] ?? "mg", 0),
+              )
+            : toMilligrams(nutriments["vitamin-c_100g"], nutriments["vitamin-c_unit"] ?? "mg", 0),
+        servingSizeGrams,
+        servingSizeMl,
+        servingText,
         imageUrl: product.image_front_small_url ? String(product.image_front_small_url) : undefined,
       };
     })

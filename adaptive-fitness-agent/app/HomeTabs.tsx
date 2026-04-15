@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { User } from "firebase/auth/react-native";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { Activity, Pizza, Flame, House, Lightbulb, User as UserIcon } from "lucide-react-native";
+import { Pizza, Flame, House, Lightbulb, User as UserIcon } from "lucide-react-native";
 
-import ActivityTrackingScreen from "./ActivityTrackingScreen";
 import AICoachScreen from "./AICoachScreen";
 import HomeScreen from "./HomeScreen";
 import NutritionScreen from "./NutritionScreen";
@@ -182,17 +181,6 @@ export default function HomeTabs({ user }: HomeTabsProps) {
             isSavingStepGoal={isSavingStepGoal}
           />
         )}
-      </Tab.Screen>
-
-      <Tab.Screen
-        name="Activity"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Activity size={size} color={color} strokeWidth={2.2} />
-          ),
-        }}
-      >
-        {() => <ActivityTrackingScreen liveStepCounter={liveStepCounter} />}
       </Tab.Screen>
 
       <Tab.Screen

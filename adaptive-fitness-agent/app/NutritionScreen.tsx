@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -7,7 +7,9 @@ import {
 } from "react-native";
 import { Plus } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import NutritionScreenModal from "./NutritionScreenModal";
+import NutritionScreenModal, {
+  type NutritionScreenModalController,
+} from "./NutritionScreenModal";
 
 import AppCard from "../components/ui/AppCard";
 import {
@@ -45,6 +47,158 @@ const QUANTITY_STEP = 0.25;
 
 type EntryMode = "search" | "manual";
 
+type NutritionManualState = {
+  name: string;
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+  sodiumMg: string;
+  potassiumMg: string;
+  calciumMg: string;
+  ironMg: string;
+  vitaminCMg: string;
+};
+
+type NutritionSearchState = {
+  query: string;
+  isSearching: boolean;
+  results: FoodCatalogItem[];
+  selectedFoodId: string | null;
+  servingGramsOverride: string;
+  servingMlOverride: string;
+};
+
+type NutritionModalDraftState = {
+  isModalVisible: boolean;
+  selectedMeal: MealType;
+  entryMode: EntryMode;
+  quantity: number;
+  quantityInput: string;
+  editingEntryId: string | null;
+  search: NutritionSearchState;
+  manual: NutritionManualState;
+};
+
+const initialNutritionSearchState: NutritionSearchState = {
+  query: "",
+  isSearching: false,
+  results: [],
+  selectedFoodId: null,
+  servingGramsOverride: "",
+  servingMlOverride: "",
+};
+
+const initialNutritionManualState: NutritionManualState = {
+  name: "",
+  calories: "",
+  protein: "",
+  carbs: "",
+  fat: "",
+  fiber: "",
+  sodiumMg: "",
+  potassiumMg: "",
+  calciumMg: "",
+  ironMg: "",
+  vitaminCMg: "",
+};
+
+const initialNutritionModalDraftState: NutritionModalDraftState = {
+  isModalVisible: false,
+  selectedMeal: "breakfast",
+  entryMode: "search",
+  quantity: 1,
+  quantityInput: "1",
+  editingEntryId: null,
+  search: initialNutritionSearchState,
+  manual: initialNutritionManualState,
+};
+
+type NutritionModalDraftAction =
+  | { type: "OPEN_ADD"; meal: MealType }
+  | {
+      type: "OPEN_EDIT_MANUAL";
+      payload: {
+        editingEntryId: string;
+        selectedMeal: MealType;
+        quantity: number;
+        quantityInput: string;
+        manual: NutritionManualState;
+      };
+    }
+  | { type: "CLOSE_MODAL" }
+  | { type: "SET_ENTRY_MODE"; value: EntryMode }
+  | { type: "SET_SEARCH_QUERY"; value: string }
+  | { type: "SET_IS_SEARCHING"; value: boolean }
+  | { type: "SET_SEARCH_RESULTS"; value: FoodCatalogItem[] }
+  | { type: "SET_SELECTED_FOOD_ID"; value: string | null }
+  | { type: "SET_SERVING_GRAMS_OVERRIDE"; value: string }
+  | { type: "SET_SERVING_ML_OVERRIDE"; value: string }
+  | { type: "SET_MANUAL_FIELD"; field: keyof NutritionManualState; value: string }
+  | { type: "SET_QUANTITY"; value: number }
+  | { type: "SET_QUANTITY_INPUT"; value: string };
+
+function nutritionModalDraftReducer(
+  state: NutritionModalDraftState,
+  action: NutritionModalDraftAction,
+): NutritionModalDraftState {
+  switch (action.type) {
+    case "OPEN_ADD":
+      return {
+        ...initialNutritionModalDraftState,
+        isModalVisible: true,
+        selectedMeal: action.meal,
+      };
+    case "OPEN_EDIT_MANUAL":
+      return {
+        ...state,
+        isModalVisible: true,
+        selectedMeal: action.payload.selectedMeal,
+        entryMode: "manual",
+        quantity: action.payload.quantity,
+        quantityInput: action.payload.quantityInput,
+        editingEntryId: action.payload.editingEntryId,
+        search: { ...initialNutritionSearchState },
+        manual: { ...action.payload.manual },
+      };
+    case "CLOSE_MODAL":
+      return {
+        ...state,
+        isModalVisible: false,
+        editingEntryId: null,
+      };
+    case "SET_ENTRY_MODE":
+      return { ...state, entryMode: action.value };
+    case "SET_SEARCH_QUERY":
+      return { ...state, search: { ...state.search, query: action.value } };
+    case "SET_IS_SEARCHING":
+      return { ...state, search: { ...state.search, isSearching: action.value } };
+    case "SET_SEARCH_RESULTS":
+      return { ...state, search: { ...state.search, results: action.value } };
+    case "SET_SELECTED_FOOD_ID":
+      return { ...state, search: { ...state.search, selectedFoodId: action.value } };
+    case "SET_SERVING_GRAMS_OVERRIDE":
+      return { ...state, search: { ...state.search, servingGramsOverride: action.value } };
+    case "SET_SERVING_ML_OVERRIDE":
+      return { ...state, search: { ...state.search, servingMlOverride: action.value } };
+    case "SET_MANUAL_FIELD":
+      return {
+        ...state,
+        manual: {
+          ...state.manual,
+          [action.field]: action.value,
+        },
+      };
+    case "SET_QUANTITY":
+      return { ...state, quantity: action.value };
+    case "SET_QUANTITY_INPUT":
+      return { ...state, quantityInput: action.value };
+    default:
+      return state;
+  }
+}
+
 function clampQuantity(value: number) {
   return Math.min(MAX_QUANTITY, Math.max(MIN_QUANTITY, value));
 }
@@ -76,26 +230,99 @@ export default function NutritionScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingLog, setIsLoadingLog] = useState(true);
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedMeal, setSelectedMeal] = useState<MealType>("breakfast");
-  const [entryMode, setEntryMode] = useState<EntryMode>("search");
-  const [quantity, setQuantity] = useState(1);
+  const [modalDraft, dispatchModalDraft] = useReducer(
+    nutritionModalDraftReducer,
+    initialNutritionModalDraftState,
+  );
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<FoodCatalogItem[]>([]);
-  const [selectedFoodId, setSelectedFoodId] = useState<string | null>(null);
-  const [servingGramsOverride, setServingGramsOverride] = useState("");
+  const {
+    isModalVisible,
+    selectedMeal,
+    entryMode,
+    quantity,
+    quantityInput,
+    editingEntryId,
+    search,
+    manual,
+  } = modalDraft;
 
-  const [manualName, setManualName] = useState("");
-  const [manualCalories, setManualCalories] = useState("");
-  const [manualProtein, setManualProtein] = useState("");
-  const [manualCarbs, setManualCarbs] = useState("");
-  const [manualFat, setManualFat] = useState("");
+  const {
+    query: searchQuery,
+    isSearching,
+    results,
+    selectedFoodId,
+    servingGramsOverride,
+    servingMlOverride,
+  } = search;
+
+  const {
+    name: manualName,
+    calories: manualCalories,
+    protein: manualProtein,
+    carbs: manualCarbs,
+    fat: manualFat,
+    fiber: manualFiber,
+    sodiumMg: manualSodiumMg,
+    potassiumMg: manualPotassiumMg,
+    calciumMg: manualCalciumMg,
+    ironMg: manualIronMg,
+    vitaminCMg: manualVitaminCMg,
+  } = manual;
+
+  const setEntryMode = (value: EntryMode) => {
+    dispatchModalDraft({ type: "SET_ENTRY_MODE", value });
+  };
+
+  const setSearchQuery = (value: string) => {
+    dispatchModalDraft({ type: "SET_SEARCH_QUERY", value });
+  };
+
+  const setIsSearching = (value: boolean) => {
+    dispatchModalDraft({ type: "SET_IS_SEARCHING", value });
+  };
+
+  const setResults = (value: FoodCatalogItem[]) => {
+    dispatchModalDraft({ type: "SET_SEARCH_RESULTS", value });
+  };
+
+  const setSelectedFoodId = (value: string | null) => {
+    dispatchModalDraft({ type: "SET_SELECTED_FOOD_ID", value });
+  };
+
+  const setServingGramsOverride = (value: string) => {
+    dispatchModalDraft({ type: "SET_SERVING_GRAMS_OVERRIDE", value });
+  };
+
+  const setServingMlOverride = (value: string) => {
+    dispatchModalDraft({ type: "SET_SERVING_ML_OVERRIDE", value });
+  };
+
+  const setManualField = (field: keyof NutritionManualState, value: string) => {
+    dispatchModalDraft({ type: "SET_MANUAL_FIELD", field, value });
+  };
+
+  const setManualName = (value: string) => setManualField("name", value);
+  const setManualCalories = (value: string) => setManualField("calories", value);
+  const setManualProtein = (value: string) => setManualField("protein", value);
+  const setManualCarbs = (value: string) => setManualField("carbs", value);
+  const setManualFat = (value: string) => setManualField("fat", value);
+  const setManualFiber = (value: string) => setManualField("fiber", value);
+  const setManualSodiumMg = (value: string) => setManualField("sodiumMg", value);
+  const setManualPotassiumMg = (value: string) => setManualField("potassiumMg", value);
+  const setManualCalciumMg = (value: string) => setManualField("calciumMg", value);
+  const setManualIronMg = (value: string) => setManualField("ironMg", value);
+  const setManualVitaminCMg = (value: string) => setManualField("vitaminCMg", value);
+
+  const setQuantity = (value: number) => {
+    dispatchModalDraft({ type: "SET_QUANTITY", value });
+  };
+
+  const setQuantityInput = (value: string) => {
+    dispatchModalDraft({ type: "SET_QUANTITY_INPUT", value });
+  };
 
   const [selectedEntry, setSelectedEntry] = useState<LoggedFoodEntry | null>(null);
   const [isEntryDetailVisible, setIsEntryDetailVisible] = useState(false);
-  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
 
   const openEntryDetail = (entry: LoggedFoodEntry) => {
     setSelectedEntry(entry);
@@ -111,23 +338,31 @@ export default function NutritionScreen() {
     if (!selectedEntry) return;
 
     const qty = clampQuantity(selectedEntry.quantity);
-    setEditingEntryId(selectedEntry.id);
-    setSelectedMeal(selectedEntry.mealType);
-    setEntryMode("manual");
-    setSearchQuery("");
-    setResults([]);
-    setSelectedFoodId(null);
-    setServingGramsOverride("");
 
-    setManualName(selectedEntry.name);
-    setManualCalories(formatQuantity(roundOne(perServing(selectedEntry.calories, qty))));
-    setManualProtein(formatQuantity(roundOne(perServing(selectedEntry.protein, qty))));
-    setManualCarbs(formatQuantity(roundOne(perServing(selectedEntry.carbs, qty))));
-    setManualFat(formatQuantity(roundOne(perServing(selectedEntry.fat, qty))));
-    setQuantity(qty);
+    dispatchModalDraft({
+      type: "OPEN_EDIT_MANUAL",
+      payload: {
+        editingEntryId: selectedEntry.id,
+        selectedMeal: selectedEntry.mealType,
+        quantity: qty,
+        quantityInput: formatQuantity(qty),
+        manual: {
+          name: selectedEntry.name,
+          calories: formatQuantity(roundOne(perServing(selectedEntry.calories, qty))),
+          protein: formatQuantity(roundOne(perServing(selectedEntry.protein, qty))),
+          carbs: formatQuantity(roundOne(perServing(selectedEntry.carbs, qty))),
+          fat: formatQuantity(roundOne(perServing(selectedEntry.fat, qty))),
+          fiber: formatQuantity(roundOne(perServing(selectedEntry.fiber, qty))),
+          sodiumMg: formatQuantity(roundOne(perServing(selectedEntry.sodiumMg, qty))),
+          potassiumMg: formatQuantity(roundOne(perServing(selectedEntry.potassiumMg, qty))),
+          calciumMg: formatQuantity(roundOne(perServing(selectedEntry.calciumMg, qty))),
+          ironMg: formatQuantity(roundOne(perServing(selectedEntry.ironMg, qty))),
+          vitaminCMg: formatQuantity(roundOne(perServing(selectedEntry.vitaminCMg, qty))),
+        },
+      },
+    });
 
     closeEntryDetail();
-    setIsModalVisible(true);
   };
 
   const handleDeleteSelectedEntry = () => {
@@ -216,11 +451,20 @@ export default function NutritionScreen() {
   useEffect(() => {
     if (!selectedFood) {
       setServingGramsOverride("");
+      setServingMlOverride("");
       return;
     }
 
-    const suggestedServing = selectedFood.servingSizeGrams ?? 100;
-    setServingGramsOverride(formatQuantity(roundOne(suggestedServing)));
+    if (selectedFood.nutrientBasis === "100ml") {
+      const suggestedMl = selectedFood.servingSizeMl ?? 100;
+      setServingMlOverride(formatQuantity(roundOne(suggestedMl)));
+      setServingGramsOverride("");
+      return;
+    }
+
+    const suggestedGrams = selectedFood.servingSizeGrams ?? 100;
+    setServingGramsOverride(formatQuantity(roundOne(suggestedGrams)));
+    setServingMlOverride("");
   }, [selectedFood]);
 
   const groupedEntries = useMemo(() => {
@@ -242,27 +486,31 @@ export default function NutritionScreen() {
         acc.protein += entry.protein;
         acc.carbs += entry.carbs;
         acc.fat += entry.fat;
+        acc.fiber += entry.fiber;
+        acc.sodiumMg += entry.sodiumMg;
+        acc.potassiumMg += entry.potassiumMg;
+        acc.calciumMg += entry.calciumMg;
+        acc.ironMg += entry.ironMg;
+        acc.vitaminCMg += entry.vitaminCMg;
         return acc;
       },
-      { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        sodiumMg: 0,
+        potassiumMg: 0,
+        calciumMg: 0,
+        ironMg: 0,
+        vitaminCMg: 0,
+      },
     );
   }, [entries]);
 
   const openAddModal = (meal: MealType) => {
-    setSelectedMeal(meal);
-    setEntryMode("search");
-    setSearchQuery("");
-    setResults([]);
-    setSelectedFoodId(null);
-    setServingGramsOverride("");
-    setManualName("");
-    setManualCalories("");
-    setManualProtein("");
-    setManualCarbs("");
-    setManualFat("");
-    setQuantity(1);
-    setIsModalVisible(true);
-    setEditingEntryId(null);
+    dispatchModalDraft({ type: "OPEN_ADD", meal });
   };
 
   const persistEntries = async (nextEntries: LoggedFoodEntry[]) => {
@@ -327,13 +575,17 @@ export default function NutritionScreen() {
           });
           return;
         }
-
-        const overrideValue = Number(servingGramsOverride);
+        const isVolumeBased = selectedFood.nutrientBasis === "100ml";
+        const overrideValue = Number(isVolumeBased ? servingMlOverride : servingGramsOverride);
         const hasValidOverride = Number.isFinite(overrideValue) && overrideValue > 0;
+
         const servingSize = hasValidOverride
           ? overrideValue
-          : (selectedFood.servingSizeGrams ?? 100);
-        const consumedGrams = servingSize * quantity;
+          : isVolumeBased
+            ? (selectedFood.servingSizeMl ?? 100)
+            : (selectedFood.servingSizeGrams ?? 100);
+
+        const consumedBaseUnits = servingSize * quantity;
 
         newEntry = {
           id: existingEntry?.id ?? `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -342,10 +594,16 @@ export default function NutritionScreen() {
           source: selectedFood.source,
           quantity: roundOne(quantity),
           unit: "serving",
-          calories: roundOne((selectedFood.caloriesPer100g * consumedGrams) / 100),
-          protein: roundOne((selectedFood.proteinPer100g * consumedGrams) / 100),
-          carbs: roundOne((selectedFood.carbsPer100g * consumedGrams) / 100),
-          fat: roundOne((selectedFood.fatPer100g * consumedGrams) / 100),
+          calories: roundOne((selectedFood.caloriesPer100g * consumedBaseUnits) / 100),
+          protein: roundOne((selectedFood.proteinPer100g * consumedBaseUnits) / 100),
+          carbs: roundOne((selectedFood.carbsPer100g * consumedBaseUnits) / 100),
+          fat: roundOne((selectedFood.fatPer100g * consumedBaseUnits) / 100),
+          fiber: roundOne((selectedFood.fiberPer100g * consumedBaseUnits) / 100),
+          sodiumMg: roundOne((selectedFood.sodiumMgPer100g * consumedBaseUnits) / 100),
+          potassiumMg: roundOne((selectedFood.potassiumMgPer100g * consumedBaseUnits) / 100),
+          calciumMg: roundOne((selectedFood.calciumMgPer100g * consumedBaseUnits) / 100),
+          ironMg: roundOne((selectedFood.ironMgPer100g * consumedBaseUnits) / 100),
+          vitaminCMg: roundOne((selectedFood.vitaminCMgPer100g * consumedBaseUnits) / 100),
           loggedAt: existingEntry?.loggedAt ?? new Date().toISOString(),
         };
       } else {
@@ -354,6 +612,12 @@ export default function NutritionScreen() {
         const protein = Number(manualProtein);
         const carbs = Number(manualCarbs);
         const fat = Number(manualFat);
+        const fiber = Number(manualFiber);
+        const sodiumMg = Number(manualSodiumMg);
+        const potassiumMg = Number(manualPotassiumMg);
+        const calciumMg = Number(manualCalciumMg);
+        const ironMg = Number(manualIronMg);
+        const vitaminCMg = Number(manualVitaminCMg);
 
         if (!name) {
           showAlert({
@@ -363,7 +627,7 @@ export default function NutritionScreen() {
           return;
         }
 
-        const values = [cals, protein, carbs, fat];
+        const values = [cals, protein, carbs, fat, fiber, sodiumMg, potassiumMg, calciumMg, ironMg, vitaminCMg];
         if (values.some((value) => !Number.isFinite(value) || value < 0)) {
           showAlert({
             title: "Invalid numbers",
@@ -383,6 +647,12 @@ export default function NutritionScreen() {
           protein: roundOne(protein * quantity),
           carbs: roundOne(carbs * quantity),
           fat: roundOne(fat * quantity),
+          fiber: roundOne(fiber * quantity),
+          sodiumMg: roundOne(sodiumMg * quantity),
+          potassiumMg: roundOne(potassiumMg * quantity),
+          calciumMg: roundOne(calciumMg * quantity),
+          ironMg: roundOne(ironMg * quantity),
+          vitaminCMg: roundOne(vitaminCMg * quantity),
           loggedAt: new Date().toISOString(),
         };
       }
@@ -391,8 +661,7 @@ export default function NutritionScreen() {
         ? entries.map((entry) => (entry.id === existingEntry.id ? newEntry : entry))
         : [...entries, newEntry];
       await persistEntries(nextEntries);
-      setEditingEntryId(null);
-      setIsModalVisible(false);
+      dispatchModalDraft({ type: "CLOSE_MODAL" });
     } catch (error) {
       showAlert({
         title: "Could not save entry",
@@ -404,15 +673,104 @@ export default function NutritionScreen() {
     }
   };
 
+  const handleQuantityInputChange = (raw: string) => {
+    const normalized = raw.replace(",", ".").replace(/[^0-9.]/g, "");
+    setQuantityInput(normalized);
+
+    if (!normalized || normalized === ".") {
+      return;
+    }
+
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) {
+      setQuantity(clampQuantity(parsed));
+    }
+  };
+
+  const commitQuantityInput = () => {
+    const parsed = Number(quantityInput);
+
+    if (Number.isFinite(parsed)) {
+      const clamped = clampQuantity(parsed);
+      setQuantity(clamped);
+      setQuantityInput(formatQuantity(clamped));
+      return;
+    }
+
+    setQuantityInput(formatQuantity(quantity));
+  };
+
   const decreaseQuantity = () => {
-    setQuantity((prev) => clampQuantity(prev - QUANTITY_STEP));
+    const next = clampQuantity(quantity - QUANTITY_STEP);
+    setQuantity(next);
+    setQuantityInput(formatQuantity(next));
   };
 
   const increaseQuantity = () => {
-    setQuantity((prev) => clampQuantity(prev + QUANTITY_STEP));
+    const next = clampQuantity(quantity + QUANTITY_STEP);
+    setQuantity(next);
+    setQuantityInput(formatQuantity(next));
   };
 
-  const quantityLabel = formatQuantity(quantity);
+  const nutritionModalController: NutritionScreenModalController = {
+    state: {
+      visible: isModalVisible,
+      isSaving,
+      selectedMeal,
+      entryMode,
+      search: {
+        query: searchQuery,
+        isSearching,
+        results,
+        selectedFoodId,
+        servingGramsOverride,
+        servingMlOverride,
+      },
+      manual: {
+        name: manualName,
+        calories: manualCalories,
+        protein: manualProtein,
+        carbs: manualCarbs,
+        fat: manualFat,
+        fiber: manualFiber,
+        sodiumMg: manualSodiumMg,
+        potassiumMg: manualPotassiumMg,
+        calciumMg: manualCalciumMg,
+        ironMg: manualIronMg,
+        vitaminCMg: manualVitaminCMg,
+      },
+      quantityLabel: quantityInput,
+      modalTitle: editingEntryId ? "Update food entry" : "Add food entry",
+      submitLabel: editingEntryId ? "Update Entry" : "Add Entry",
+    },
+    actions: {
+      setEntryMode,
+      setSearchQuery,
+      handleSearchFoods,
+      setSelectedFoodId,
+      setServingGramsOverride,
+      setServingMlOverride,
+      setManualName,
+      setManualCalories,
+      setManualProtein,
+      setManualCarbs,
+      setManualFat,
+      setManualFiber,
+      setManualSodiumMg,
+      setManualPotassiumMg,
+      setManualCalciumMg,
+      setManualIronMg,
+      setManualVitaminCMg,
+      setQuantityLabel: handleQuantityInputChange,
+      onQuantityBlur: commitQuantityInput,
+      decreaseQuantity,
+      increaseQuantity,
+      handleAddEntry,
+      onClose: () => {
+        dispatchModalDraft({ type: "CLOSE_MODAL" });
+      },
+    },
+  };
 
   return (
     <SafeAreaView style={globalStyles.screen}>
@@ -456,6 +814,36 @@ export default function NutritionScreen() {
                 <Text style={styles.macroValue}>{roundOne(totals.fat)} g</Text>
                 <Text style={styles.macroLabel}>Fat</Text>
               </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{roundOne(totals.fiber)} g</Text>
+                <Text style={styles.macroLabel}>Fibre</Text>
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(totals.sodiumMg)} mg</Text>
+                <Text style={styles.macroLabel}>Sodium</Text>
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(totals.potassiumMg)} mg</Text>
+                <Text style={styles.macroLabel}>Potassium</Text>
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(totals.calciumMg)} mg</Text>
+                <Text style={styles.macroLabel}>Calcium</Text>
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{roundOne(totals.ironMg)} mg</Text>
+                <Text style={styles.macroLabel}>Iron</Text>
+              </View>
+
+              <View style={styles.macroItem}>
+                <Text style={styles.macroValue}>{roundOne(totals.vitaminCMg)} mg</Text>
+                <Text style={styles.macroLabel}>Vitamin C</Text>
+              </View>
             </View>
           </AppCard>
 
@@ -496,7 +884,7 @@ export default function NutritionScreen() {
                             {Math.round(entry.calories)} kcal
                           </Text>
                           <Text style={styles.entryMacros}>
-                            P {roundOne(entry.protein)} • C {roundOne(entry.carbs)} • F {roundOne(entry.fat)}
+                            P {roundOne(entry.protein)} • C {roundOne(entry.carbs)} • F {roundOne(entry.fat)} • Fi {roundOne(entry.fiber)}
                           </Text>
                         </View>
                       </Pressable>
@@ -514,51 +902,15 @@ export default function NutritionScreen() {
           ) : null}
         </View>
       </ScrollView>
-      <NutritionScreenModal
-        visible={isModalVisible}
-        isSaving={isSaving}
-        selectedMeal={selectedMeal}
-        setSelectedMeal={setSelectedMeal}
-        entryMode={entryMode}
-        setEntryMode={setEntryMode}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        isSearching={isSearching}
-        handleSearchFoods={handleSearchFoods}
-        results={results}
-        selectedFoodId={selectedFoodId}
-        setSelectedFoodId={setSelectedFoodId}
-        servingGramsOverride={servingGramsOverride}
-        setServingGramsOverride={setServingGramsOverride}
-        manualName={manualName}
-        setManualName={setManualName}
-        manualCalories={manualCalories}
-        setManualCalories={setManualCalories}
-        manualProtein={manualProtein}
-        setManualProtein={setManualProtein}
-        manualCarbs={manualCarbs}
-        setManualCarbs={setManualCarbs}
-        manualFat={manualFat}
-        setManualFat={setManualFat}
-        quantityLabel={quantityLabel}
-        decreaseQuantity={decreaseQuantity}
-        increaseQuantity={increaseQuantity}
-        handleAddEntry={handleAddEntry}
-        modalTitle={editingEntryId ? "Update food entry" : "Add food entry"}
-        submitLabel={editingEntryId ? "Update Entry" : "Add Entry"}
-        onClose={() => {
-          setEditingEntryId(null);
-          setIsModalVisible(false);
-        }}
-      />
+      <NutritionScreenModal controller={nutritionModalController} />
       <NutritionEntryDetailModal
-  visible={isEntryDetailVisible}
-  entry={selectedEntry}
-  isBusy={isSaving}
-  onClose={closeEntryDetail}
-  onUpdateEntry={handleEditSelectedEntry}
-  onDeleteEntry={handleDeleteSelectedEntry}
-/>
+        visible={isEntryDetailVisible}
+        entry={selectedEntry}
+        isBusy={isSaving}
+        onClose={closeEntryDetail}
+        onUpdateEntry={handleEditSelectedEntry}
+        onDeleteEntry={handleDeleteSelectedEntry}
+      />
     </SafeAreaView>
   );
 }
