@@ -24,7 +24,11 @@ export const styles = StyleSheet.create({
     flex: 1,
     maxWidth: 170,
     alignItems: "flex-end",
-    gap: appTheme.spacing.xs,
+  },
+  stepsProgressIndicatorWrap: {
+    width: "100%",
+    height: 30,
+    justifyContent: "center",
   },
   metricsCard: {
     gap: appTheme.spacing.md,
@@ -81,6 +85,25 @@ export const styles = StyleSheet.create({
     height: "100%",
     borderRadius: appTheme.radii.pill,
     backgroundColor: appTheme.colors.primary,
+  },
+  progressThumb: {
+    position: "absolute",
+    top: 3,
+    width: 48,
+    height: 24,
+    borderRadius: appTheme.radii.pill,
+    backgroundColor: appTheme.colors.cardAlt,
+    borderWidth: 1,
+    borderColor: appTheme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  progressThumbText: {
+    ...appTheme.typography.caption,
+    color: appTheme.colors.text,
+    fontSize: 11,
+    lineHeight: 12,
+    fontWeight: "700",
   },
   progressCaption: {
     ...appTheme.typography.caption,

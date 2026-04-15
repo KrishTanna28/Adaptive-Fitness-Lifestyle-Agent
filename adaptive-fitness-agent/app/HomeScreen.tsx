@@ -1,5 +1,13 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { FlatList, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  Animated,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   EmailAuthProvider,
@@ -38,6 +46,7 @@ const MIN_STEP_GOAL = 100;
 const MAX_STEP_GOAL = 100000;
 const STEP_GOAL_INCREMENT = 100;
 const GOAL_ROW_HEIGHT = 44;
+const STEPS_PROGRESS_THUMB_WIDTH = 48;
 
 function normalizeGoalForPicker(goal: number) {
   return Math.min(
@@ -81,9 +90,30 @@ export default function HomeScreen({
     hasGoogleLogin && !hasPasswordLogin && Boolean(user.email);
 
   const goalProgressPercent = Math.round(liveStepCounter.progress * 100);
-  const goalProgressBarPercent = Math.min(goalProgressPercent, 100);
+  const goalProgressBarPercent = Math.min(Math.max(goalProgressPercent, 0), 100);
   const goalProgressBarWidth = `${goalProgressBarPercent}%` as `${number}%`;
-  const goalProgressLabel = `${goalProgressPercent}%`;
+  const goalProgressLabel = String(goalProgressPercent) + "%";
+  const [stepsTrackWidth, setStepsTrackWidth] = useState(0);
+  const progressThumbPosition = useRef(
+    new Animated.Value(goalProgressBarPercent),
+  ).current;
+
+  useEffect(() => {
+    Animated.spring(progressThumbPosition, {
+      toValue: goalProgressBarPercent,
+      damping: 16,
+      stiffness: 140,
+      mass: 0.7,
+      useNativeDriver: false,
+    }).start();
+  }, [goalProgressBarPercent, progressThumbPosition]);
+
+  const progressThumbTranslateX = progressThumbPosition.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, Math.max(stepsTrackWidth - STEPS_PROGRESS_THUMB_WIDTH, 0)],
+    extrapolate: "clamp",
+  });
+
   const stepCountText = liveStepCounter.stepsToday.toLocaleString();
   const stepGoalText = `/${liveStepCounter.goal.toLocaleString()} steps`;
   const suggestionText =
@@ -286,18 +316,34 @@ export default function HomeScreen({
                 </View>
 
                 <View style={styles.stepsProgressWrap}>
-                  <View style={styles.progressTrack}>
+                  <View
+                    style={styles.stepsProgressIndicatorWrap}
+                    onLayout={({ nativeEvent }) => {
+                      setStepsTrackWidth(nativeEvent.layout.width);
+                    }}
+                  >
+                    <View style={styles.progressTrack}>
+                      {liveStepCounter.isLoading ? (
+                        <AppSkeleton width="56%" height={10} borderRadius={999} variant="home" />
+                      ) : (
+                        <View style={[styles.progressFill, { width: goalProgressBarWidth }]} />
+                      )}
+                    </View>
+
                     {liveStepCounter.isLoading ? (
-                      <AppSkeleton width="56%" height={10} borderRadius={999} variant="home" />
+                      <AppSkeleton width={48} height={24} borderRadius={999} variant="home" />
                     ) : (
-                      <View style={[styles.progressFill, { width: goalProgressBarWidth }]} />
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[
+                          styles.progressThumb,
+                          { transform: [{ translateX: progressThumbTranslateX }] },
+                        ]}
+                      >
+                        <Text style={styles.progressThumbText}>{goalProgressLabel}</Text>
+                      </Animated.View>
                     )}
                   </View>
-                  {liveStepCounter.isLoading ? (
-                    <AppSkeleton width={42} height={14} borderRadius={7} variant="home" />
-                  ) : (
-                    <Text style={styles.progressCaption}>{goalProgressLabel}</Text>
-                  )}
                 </View>
               </View>
             </AppCard>
