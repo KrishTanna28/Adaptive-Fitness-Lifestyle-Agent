@@ -12,6 +12,7 @@ type NutritionEntryDetailModalProps = {
   entry: LoggedFoodEntry | null;
   isBusy?: boolean;
   onClose: () => void;
+  canEdit: boolean;
   onUpdateEntry: () => void;
   onDeleteEntry: () => void;
 }
@@ -39,6 +40,7 @@ export default function NutritionEntryDetailModal({
   entry,
   isBusy,
   onClose,
+  canEdit,
   onUpdateEntry,
   onDeleteEntry,
 }: NutritionEntryDetailModalProps) {
@@ -85,7 +87,7 @@ export default function NutritionEntryDetailModal({
               </>
             ) : null}
 
-            <View style={detailModalStyles.menu}>
+            {canEdit ? (<View style={detailModalStyles.menu}>
               <AppButton
                 title="Update entry"
                 variant="primary"
@@ -98,7 +100,7 @@ export default function NutritionEntryDetailModal({
                 disabled={isBusy}
                 onPress={onDeleteEntry}
               />
-            </View>
+            </View>) : null}
           </View>
         </View>
       </View>

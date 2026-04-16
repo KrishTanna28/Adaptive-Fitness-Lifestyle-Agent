@@ -5,7 +5,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { Plus } from "lucide-react-native";
+import { CalendarDays, ChevronDown, Plus } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import NutritionScreenModal, {
   type NutritionScreenModalController,
@@ -32,6 +32,8 @@ import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
 import { styles } from "./NutritionScreen.styles";
 import NutritionEntryDetailModal from "./NutritionEntryDetailModal";
+
+import NutritionDatePickerModal from "./NutritionDatePickerModal";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
 const MEAL_LABELS: Record<MealType, string> = {
@@ -118,15 +120,15 @@ const initialNutritionModalDraftState: NutritionModalDraftState = {
 type NutritionModalDraftAction =
   | { type: "OPEN_ADD"; meal: MealType }
   | {
-      type: "OPEN_EDIT_MANUAL";
-      payload: {
-        editingEntryId: string;
-        selectedMeal: MealType;
-        quantity: number;
-        quantityInput: string;
-        manual: NutritionManualState;
-      };
-    }
+    type: "OPEN_EDIT_MANUAL";
+    payload: {
+      editingEntryId: string;
+      selectedMeal: MealType;
+      quantity: number;
+      quantityInput: string;
+      manual: NutritionManualState;
+    };
+  }
   | { type: "CLOSE_MODAL" }
   | { type: "SET_ENTRY_MODE"; value: EntryMode }
   | { type: "SET_SEARCH_QUERY"; value: string }
@@ -221,10 +223,58 @@ function perServing(total: number, quantity: number) {
   return total / quantity;
 }
 
+function parseDateKey(dateKey: string) {
+  const parts = dateKey.split("-").map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function getCurrentWeekRange(now = new Date()) {
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const day = base.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(base);
+  monday.setDate(base.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return { monday, sunday };
+}
+
+function formatDateOptionalLabel(dateKey: string, todayKey: string) {
+  if (dateKey === todayKey)
+    return "Today";
+  const d = parseDateKey(dateKey);
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  })
+}
+
+function formatDateForDisplay(dateKey: string) {
+  const d = parseDateKey(dateKey);
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function NutritionScreen() {
   const { showAlert } = useAppAlert();
   const { user, loading: authLoading } = useAuthUser();
   const todayKey = getTodayDateKey();
+  const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+  const weekRange = useMemo(() => {
+    const range = getCurrentWeekRange();
+    return {
+      startKey: getTodayDateKey(range.monday),
+      endKey: getTodayDateKey(range.sunday)
+    }
+  }, [todayKey])
+
+  const canEditSelectedDate = selectedDateKey >= weekRange.startKey && selectedDateKey <= weekRange.endKey;
 
   const [entries, setEntries] = useState<LoggedFoodEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -335,6 +385,7 @@ export default function NutritionScreen() {
   }
 
   const handleEditSelectedEntry = () => {
+    if (!ensureEditableDate()) return;
     if (!selectedEntry) return;
 
     const qty = clampQuantity(selectedEntry.quantity);
@@ -366,6 +417,7 @@ export default function NutritionScreen() {
   };
 
   const handleDeleteSelectedEntry = () => {
+    if (!ensureEditableDate()) return;
     if (!selectedEntry) return;
 
     const entryToDelete = selectedEntry;
@@ -396,6 +448,15 @@ export default function NutritionScreen() {
     })
   }
 
+  const ensureEditableDate = () => {
+    if (canEditSelectedDate) return true;
+    showAlert({
+      title: "Week locked",
+      message: "You can edit only logs from Monday to Sunday of the current week.",
+    });
+    return false;
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -411,7 +472,7 @@ export default function NutritionScreen() {
       setIsLoadingLog(true);
 
       try {
-        const log = await loadDailyNutritionLog(user.uid, todayKey);
+        const log = await loadDailyNutritionLog(user.uid, selectedDateKey);
         if (mounted) {
           setEntries(log.entries);
         }
@@ -441,7 +502,7 @@ export default function NutritionScreen() {
     return () => {
       mounted = false;
     };
-  }, [showAlert, todayKey, user?.uid]);
+  }, [showAlert, selectedDateKey, user?.uid]);
 
   const selectedFood = useMemo(
     () => results.find((item) => item.id === selectedFoodId) ?? null,
@@ -510,6 +571,7 @@ export default function NutritionScreen() {
   }, [entries]);
 
   const openAddModal = (meal: MealType) => {
+    if (!ensureEditableDate()) return;
     dispatchModalDraft({ type: "OPEN_ADD", meal });
   };
 
@@ -521,7 +583,7 @@ export default function NutritionScreen() {
     setIsSaving(true);
 
     try {
-      await saveDailyNutritionLog(user.uid, todayKey, nextEntries);
+      await saveDailyNutritionLog(user.uid, selectedDateKey, nextEntries);
       setEntries(nextEntries);
     } finally {
       setIsSaving(false);
@@ -563,6 +625,7 @@ export default function NutritionScreen() {
   };
 
   const handleAddEntry = async () => {
+    if (!ensureEditableDate()) return;
     const existingEntry = editingEntryId ? entries.find((entry) => entry.id === editingEntryId) ?? null : null;
     try {
       let newEntry: LoggedFoodEntry;
@@ -784,11 +847,29 @@ export default function NutritionScreen() {
             <View style={styles.heroTopRow}>
               <View style={styles.heroTextWrap}>
                 <Text style={styles.title}>Diet / Nutrition</Text>
-                <Text style={styles.subtitle}>Search, log, and track meals for today</Text>
               </View>
             </View>
 
-            <Text style={styles.dateText}>Date: {todayKey}</Text>
+            <View style={styles.datePickerBlock}>
+
+              <Pressable
+                style={styles.datePickerTrigger}
+                onPress={() => setIsDatePickerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  "Change nutrition log date. Current " + formatDateForDisplay(selectedDateKey)
+                }
+                accessibilityHint="Opens date picker"
+                hitSlop={8}
+              >
+                <View style={styles.datePickerLeft}>
+                  <CalendarDays size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
+                  <Text style={styles.datePickerValue}>{formatDateForDisplay(selectedDateKey)}</Text>
+                </View>
+
+                <ChevronDown size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
+              </Pressable>
+            </View>
           </AppCard>
 
           <AppCard style={styles.sectionCard}>
@@ -855,7 +936,7 @@ export default function NutritionScreen() {
                 <View style={styles.mealHeaderRow}>
                   <Text style={styles.sectionTitle}>{MEAL_LABELS[meal]}</Text>
 
-                  <Pressable
+                  {canEditSelectedDate ? (<Pressable
                     style={styles.addMealButton}
                     onPress={() => openAddModal(meal)}
                     accessibilityRole="button"
@@ -863,7 +944,7 @@ export default function NutritionScreen() {
                   >
                     <Plus size={14} color={appTheme.colors.text} strokeWidth={2.4} />
                     <Text style={styles.addMealText}>Add</Text>
-                  </Pressable>
+                  </Pressable>) : null}
                 </View>
 
                 {mealEntries.length === 0 ? (
@@ -902,15 +983,21 @@ export default function NutritionScreen() {
           ) : null}
         </View>
       </ScrollView>
-      <NutritionScreenModal controller={nutritionModalController} />
-      <NutritionEntryDetailModal
-        visible={isEntryDetailVisible}
-        entry={selectedEntry}
-        isBusy={isSaving}
-        onClose={closeEntryDetail}
-        onUpdateEntry={handleEditSelectedEntry}
-        onDeleteEntry={handleDeleteSelectedEntry}
+      <NutritionDatePickerModal
+        visible={isDatePickerVisible}
+        selectedDateKey={selectedDateKey}
+        onSelectDate={setSelectedDateKey}
+        onClose={() => setIsDatePickerVisible(false)}
       />
+      <NutritionScreenModal controller={nutritionModalController} />
+      <NutritionEntryDetailModal 
+      visible={isEntryDetailVisible} 
+      entry={selectedEntry} 
+      isBusy={isSaving} 
+      canEdit={canEditSelectedDate} 
+      onClose={closeEntryDetail} 
+      onUpdateEntry={handleEditSelectedEntry} 
+      onDeleteEntry={handleDeleteSelectedEntry} />
     </SafeAreaView>
   );
 }
