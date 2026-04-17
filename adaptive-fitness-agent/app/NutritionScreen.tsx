@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -25,7 +25,8 @@ import {
 import {
   getTodayDateKey,
   loadDailyNutritionLog,
-  saveDailyNutritionLog,
+  upsertLoggedFoodEntry,
+  deleteLoggedFoodEntry,
   type LoggedFoodEntry,
 } from "../services/nutritionLog";
 import { appTheme } from "../theme/designSystem";
@@ -279,6 +280,8 @@ export default function NutritionScreen() {
   const [entries, setEntries] = useState<LoggedFoodEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingLog, setIsLoadingLog] = useState(true);
+  const [isMigratingLogs, setIsMigratingLogs] = useState(false);
+  const migrationAttemptedForUidRef = useRef<string | null>(null);
 
   const [modalDraft, dispatchModalDraft] = useReducer(
     nutritionModalDraftReducer,
@@ -429,9 +432,11 @@ export default function NutritionScreen() {
         { label: "Cancel", style: "secondary" },
         {
           label: "Delete", style: "primary", onPress: async () => {
+            setIsSaving(true);
             try {
-              const nextEntries = entries.filter((item) => item.id !== entryToDelete.id);
-              await persistEntries(nextEntries);
+              const uid = requireUserUid();
+              await deleteLoggedFoodEntry(uid, selectedDateKey, entryToDelete.id);
+              setEntries((prev) => prev.filter((item) => item.id !== entryToDelete.id));
               closeEntryDetail();
             } catch (error) {
               showAlert({
@@ -441,6 +446,8 @@ export default function NutritionScreen() {
                   "Please try again in a moment.",
                 ),
               });
+            } finally {
+              setIsSaving(false);
             }
           }
         }
@@ -457,6 +464,13 @@ export default function NutritionScreen() {
     return false;
   };
 
+  const requireUserUid = () => {
+    if (!user?.uid) {
+      throw new Error("You must be signed in to log meals.");
+    }
+    return user.uid;
+  };
+  
   useEffect(() => {
     let mounted = true;
 
@@ -469,6 +483,13 @@ export default function NutritionScreen() {
         return;
       }
 
+      if (isMigratingLogs) {
+        if (mounted) {
+          setIsLoadingLog(true);
+        }
+        return;
+      }
+
       setIsLoadingLog(true);
 
       try {
@@ -477,7 +498,7 @@ export default function NutritionScreen() {
           setEntries(log.entries);
         }
       } catch (error) {
-        if (!mounted) {
+        if (mounted) {
           showAlert({
             title: "Could not load nutrition log",
             message: getUserFriendlyErrorMessage(
@@ -502,7 +523,7 @@ export default function NutritionScreen() {
     return () => {
       mounted = false;
     };
-  }, [showAlert, selectedDateKey, user?.uid]);
+  }, [isMigratingLogs, showAlert, selectedDateKey, user?.uid]);
 
   const selectedFood = useMemo(
     () => results.find((item) => item.id === selectedFoodId) ?? null,
@@ -573,21 +594,6 @@ export default function NutritionScreen() {
   const openAddModal = (meal: MealType) => {
     if (!ensureEditableDate()) return;
     dispatchModalDraft({ type: "OPEN_ADD", meal });
-  };
-
-  const persistEntries = async (nextEntries: LoggedFoodEntry[]) => {
-    if (!user?.uid) {
-      throw new Error("You must be signed in to log meals.");
-    }
-
-    setIsSaving(true);
-
-    try {
-      await saveDailyNutritionLog(user.uid, selectedDateKey, nextEntries);
-      setEntries(nextEntries);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleSearchFoods = async () => {
@@ -700,7 +706,7 @@ export default function NutritionScreen() {
         }
 
         newEntry = {
-          id: `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: existingEntry?.id ?? `entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           mealType: selectedMeal,
           name,
           source: existingEntry?.source ?? "Manual",
@@ -716,15 +722,26 @@ export default function NutritionScreen() {
           calciumMg: roundOne(calciumMg * quantity),
           ironMg: roundOne(ironMg * quantity),
           vitaminCMg: roundOne(vitaminCMg * quantity),
-          loggedAt: new Date().toISOString(),
+          loggedAt: existingEntry?.loggedAt ?? new Date().toISOString(),
         };
       }
 
-      const nextEntries = existingEntry
-        ? entries.map((entry) => (entry.id === existingEntry.id ? newEntry : entry))
-        : [...entries, newEntry];
-      await persistEntries(nextEntries);
-      dispatchModalDraft({ type: "CLOSE_MODAL" });
+      const uid = requireUserUid();
+
+      setIsSaving(true);
+      try {
+        await upsertLoggedFoodEntry(uid, selectedDateKey, newEntry);
+
+        setEntries((prev) =>
+          existingEntry
+            ? prev.map((entry) => (entry.id === existingEntry.id ? newEntry : entry))
+            : [...prev, newEntry],
+        );
+
+        dispatchModalDraft({ type: "CLOSE_MODAL" });
+      } finally {
+        setIsSaving(false);
+      }
     } catch (error) {
       showAlert({
         title: "Could not save entry",

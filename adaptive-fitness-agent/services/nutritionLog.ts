@@ -1,4 +1,12 @@
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+    collection,
+    deleteDoc,
+    doc,
+    getDocs,
+    serverTimestamp,
+    setDoc,
+    writeBatch,
+} from "firebase/firestore";
 import { db } from "./firebase";
 import type { FoodSource, MealType } from "./nutritionApi";
 
@@ -70,6 +78,26 @@ function normalizeEntry(raw: Partial<LoggedFoodEntry>): LoggedFoodEntry {
     };
 }
 
+function userNutritionLogsCollectionRef(uid: string) {
+    return collection(db, "users", uid, "nutritionLogs");
+}
+
+function dayDocRef(uid: string, dateKey: string) {
+    return doc(db, "users", uid, "nutritionLogs", dateKey);
+}
+
+function entryDocRef(uid: string, dateKey: string, entryId: string) {
+    return doc(db, "users", uid, "nutritionLogs", dateKey, "entries", entryId);
+}
+
+function entriesCollectionRef(uid: string, dateKey: string) {
+    return collection(db, "users", uid, "nutritionLogs", dateKey, "entries");
+}
+
+function sortByLoggedAt(entries: LoggedFoodEntry[]) {
+    return [...entries].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
+}
+
 export function getTodayDateKey(date = new Date()) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -81,35 +109,55 @@ export async function loadDailyNutritionLog(
     uid: string,
     dateKey: string
 ): Promise<DailyNutritionLog> {
-    const ref = doc(db, "users", uid, "nutritionLogs", dateKey);
-    const snapshot = await getDoc(ref);
-
-    if (!snapshot.exists()) {
-        return { dateKey, entries: [] };
-    }
-
-    const data = snapshot.data();
+    const entrySnapshot = await getDocs(entriesCollectionRef(uid, dateKey));
+    const entryDocEntries = entrySnapshot.docs.map((entryDoc) =>
+        normalizeEntry({
+            id: entryDoc.id,
+            ...((entryDoc.data() ?? {}) as Partial<LoggedFoodEntry>),
+        })
+    );
 
     return {
         dateKey,
-        entries: Array.isArray(data.entries)
-            ? data.entries.map((entry) => normalizeEntry((entry ?? {}) as Partial<LoggedFoodEntry>))
-            : []
+        entries: sortByLoggedAt(entryDocEntries),
     };
 }
 
-export async function saveDailyNutritionLog(
+export async function upsertLoggedFoodEntry(
     uid: string,
     dateKey: string,
-    entries: LoggedFoodEntry[],
+    entry: LoggedFoodEntry,
 ) {
-    const ref = doc(db, "users", uid, "nutritionLogs", dateKey);
-    await setDoc(
-        ref, {
-        dateKey,
-        entries,
-        updatedAt: serverTimestamp(),
-    },
-        { merge: true },
-    );
+    const normalized = normalizeEntry(entry);
+    await Promise.all([
+        setDoc(entryDocRef(uid, dateKey, normalized.id), normalized, { merge: true }),
+        setDoc(
+            dayDocRef(uid, dateKey),
+            {
+                dateKey,
+                usesEntryDocs: true,
+                updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+        ),
+    ]);
+}
+
+export async function deleteLoggedFoodEntry(
+    uid: string,
+    dateKey: string,
+    entryId: string,
+) {
+    await Promise.all([
+        deleteDoc(entryDocRef(uid, dateKey, entryId)),
+        setDoc(
+            dayDocRef(uid, dateKey),
+            {
+                dateKey,
+                usesEntryDocs: true,
+                updatedAt: serverTimestamp(),
+            },
+            { merge: true },
+        ),
+    ]);
 }

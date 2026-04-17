@@ -246,7 +246,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: appTheme.spacing.md,
   },
@@ -256,6 +256,7 @@ export const styles = StyleSheet.create({
   },
   resultLeft: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   resultTitle: {
@@ -268,6 +269,8 @@ export const styles = StyleSheet.create({
     color: appTheme.colors.mutedText,
   },
   resultRight: {
+    flex: 1,
+    minWidth: 0,
     alignItems: "flex-end",
     gap: 2,
   },
@@ -279,6 +282,7 @@ export const styles = StyleSheet.create({
   resultMacros: {
     ...appTheme.typography.caption,
     color: appTheme.colors.mutedText,
+    textAlign: "right",
   },
 
   manualRow: {
