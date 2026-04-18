@@ -67,6 +67,24 @@ export const styles = StyleSheet.create({
     ...appTheme.typography.subheading,
     color: appTheme.colors.text,
   },
+  totalsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: appTheme.spacing.md,
+    columnGap: appTheme.spacing.md,
+  },
+  totalItem: {
+    width: "47%",
+    gap: appTheme.spacing.xs,
+  },
+  totalValue: {
+    ...appTheme.typography.subheading,
+    color: appTheme.colors.text,
+  },
+  totalLabel: {
+    ...appTheme.typography.label,
+    color: appTheme.colors.mutedText,
+  },
   emptyText: {
     ...appTheme.typography.label,
     color: appTheme.colors.mutedText,

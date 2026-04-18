@@ -207,6 +207,22 @@ export default function WorkoutScreen() {
   const [entries, setEntries] = useState<LoggedWorkoutEntry[]>([]);
   const [isLoadingLog, setIsLoadingLog] = useState(true);
 
+  const dailyWorkoutCaloriesBurned = useMemo(() => {
+    return Math.round(
+      entries.reduce((sum, entry) => {
+        const value = Number(entry.caloriesActive);
+        return Number.isFinite(value) ? sum + Math.max(0, value) : sum;
+      }, 0),
+    );
+  }, [entries]);
+
+  const totalWorkoutDurationMin = useMemo(() => {
+    return entries.reduce((sum, entry) => {
+      const value = Number(entry.durationMin);
+      return Number.isFinite(value) ? sum + Math.max(0, value) : sum;
+    }, 0);
+  }, [entries]);
+
   const [profileForCalories, setProfileForCalories] = useState<UserMetProfile | null>(null);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -784,6 +800,27 @@ export default function WorkoutScreen() {
                 </View>
                 <ChevronDown size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
               </Pressable>
+            </View>
+          </AppCard>
+
+          <AppCard style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Daily totals</Text>
+
+            <View style={styles.totalsGrid}>
+              <View style={styles.totalItem}>
+                <Text style={styles.totalValue}>{dailyWorkoutCaloriesBurned} kcal</Text>
+                <Text style={styles.totalLabel}>Calories burned</Text>
+              </View>
+
+              <View style={styles.totalItem}>
+                <Text style={styles.totalValue}>{entries.length}</Text>
+                <Text style={styles.totalLabel}>Workouts</Text>
+              </View>
+
+              <View style={styles.totalItem}>
+                <Text style={styles.totalValue}>{Math.round(totalWorkoutDurationMin)} min</Text>
+                <Text style={styles.totalLabel}>Duration</Text>
+              </View>
             </View>
           </AppCard>
 

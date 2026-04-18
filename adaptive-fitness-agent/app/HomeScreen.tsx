@@ -20,6 +20,7 @@ import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { Pizza, Flame, Lightbulb, Target } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { loadDailyNutritionLog } from "../services/nutritionLog";
+import { loadDailyWorkoutLog } from "../services/workoutLog";
 import { getTodayDateKey } from "@/services/helperFunctions";
 import { auth } from "../services/firebase";
 import {
@@ -127,23 +128,38 @@ export default function HomeScreen({
     stepGoalOptions.length - 1,
   );
   const [caloriesIntake, setCaloriesIntake] = useState(0);
+  const [workoutCaloriesBurned, setWorkoutCaloriesBurned] = useState(0);
   const [isLoadingCaloriesIntake, setIsLoadingCaloriesIntake] = useState(false);
   const loadCaloriesIntake = useCallback(async () => {
     setIsLoadingCaloriesIntake(true);
     try {
       const todayKey = getTodayDateKey();
-      const log = await loadDailyNutritionLog(user.uid, todayKey);
-      const totalCalories = log.entries.reduce((sum, entry) => {
+      const [nutritionLog, workoutLog] = await Promise.all([
+        loadDailyNutritionLog(user.uid, todayKey),
+        loadDailyWorkoutLog(user.uid, todayKey),
+      ]);
+
+      const totalCalories = nutritionLog.entries.reduce((sum, entry) => {
         const value = Number(entry.calories);
         return Number.isFinite(value) ? sum + value : sum;
-      }, 0)
+      }, 0);
+
+      const totalWorkoutCalories = workoutLog.entries.reduce((sum, entry) => {
+        const value = Number(entry.caloriesActive);
+        return Number.isFinite(value) ? sum + Math.max(0, value) : sum;
+      }, 0);
+
       setCaloriesIntake(Math.round(totalCalories));
+      setWorkoutCaloriesBurned(Math.round(totalWorkoutCalories));
     } catch (error) {
       setCaloriesIntake(0);
+      setWorkoutCaloriesBurned(0);
     } finally {
       setIsLoadingCaloriesIntake(false);
     }
   }, [user.uid]);
+
+  const totalCaloriesBurned = liveStepCounter.caloriesBurned + workoutCaloriesBurned;
 
   useFocusEffect(
     useCallback(() => {
@@ -355,9 +371,11 @@ export default function HomeScreen({
               <View style={styles.metricItem}>
                 <View style={styles.metricValueRow}>
                   <Flame size={18} color={appTheme.colors.text} strokeWidth={2.2} />
-                  <Text style={styles.metricValue}>{liveStepCounter.caloriesBurned} kcal</Text>
+                  <Text style={styles.metricValue}>
+                    {isLoadingCaloriesIntake ? 0 : totalCaloriesBurned} kcal
+                  </Text>
                 </View>
-                <Text style={styles.metricLabel}>Calories burned</Text>
+                <Text style={styles.metricLabel}>Total burned (walk + workout)</Text>
               </View>
 
               <View style={styles.metricItem}>
