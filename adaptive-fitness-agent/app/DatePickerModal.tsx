@@ -4,7 +4,7 @@ import { Calendar } from "react-native-calendars";
 
 import AppButton from "../components/ui/AppButton";
 import AppTextField from "../components/ui/AppTextField";
-import { getTodayDateKey } from "../services/nutritionLog";
+import { getTodayDateKey } from "../services/helperFunctions";
 import { appTheme } from "../theme/designSystem";
 import { styles } from "./NutritionScreen.styles";
 
@@ -27,7 +27,7 @@ function daysInMonth(year: number, month1To12: number) {
   return new Date(year, month1To12, 0).getDate();
 }
 
-function NutritionDatePickerModalImpl({
+function DatePickerModalImpl({
   visible,
   selectedDateKey,
   onSelectDate,
@@ -235,4 +235,4 @@ function NutritionDatePickerModalImpl({
   );
 }
 
-export default memo(NutritionDatePickerModalImpl);
+export default memo(DatePickerModalImpl);

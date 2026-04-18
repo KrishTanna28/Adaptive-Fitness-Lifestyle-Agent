@@ -1,5 +1,7 @@
 export type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
 export type FoodSource = "USDA" | "OpenFoodFacts" | "Manual";
+import { toNumber } from "./helperFunctions";
+
 
 type NutrientBasis = "100g" | "100ml";
 
@@ -114,10 +116,6 @@ const NUTRITION_API_BASE_URL = (process.env.EXPO_PUBLIC_NUTRITION_API_BASE_URL ?
   .trim()
   .replace(/\/$/, "");
 
-function toNumber(value: unknown, fallback = 0) {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 function parseServingSizeInGrams(value?: string): number | undefined {
   if (!value) {

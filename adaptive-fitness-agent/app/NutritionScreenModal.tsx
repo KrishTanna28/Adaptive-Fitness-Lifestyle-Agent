@@ -6,7 +6,7 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { Minus, Plus } from "lucide-react-native";
+import { Minus, Plus, X } from "lucide-react-native";
 import AppButton from "../components/ui/AppButton";
 import AppTextField from "../components/ui/AppTextField";
 import { appTheme } from "../theme/designSystem";
@@ -163,8 +163,36 @@ export default function NutritionScreenModal({ controller }: NutritionScreenModa
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                     >
-                        <Text style={styles.modalTitle}>{modalTitle ?? "Add food entry"}</Text>
-                        <Text style={styles.hintText}>Meal: {MEAL_LABELS[selectedMeal]}</Text>
+                        <View
+                            style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: appTheme.spacing.md,
+                            }}
+                        >
+                            <Text style={styles.modalTitle}>{modalTitle ?? "Add food entry"}</Text>
+
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Close modal"
+                                disabled={isSaving}
+                                onPress={actions.onClose}
+                                style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: appTheme.radii.pill,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: appTheme.colors.card,
+                                    borderWidth: 1,
+                                    borderColor: appTheme.colors.border,
+                                }}
+                            >
+                                <X size={18} color={appTheme.colors.text} strokeWidth={2.2} />
+                            </Pressable>
+                        </View>
+                        <Text style={styles.hintText}>Meal: {MEAL_LABELS[selectedMeal]}</Text>                        <Text style={styles.hintText}>Meal: {MEAL_LABELS[selectedMeal]}</Text>
 
                         <Text style={styles.fieldLabel}>Entry type</Text>
                         <View style={styles.modeRow}>
@@ -262,16 +290,16 @@ export default function NutritionScreenModal({ controller }: NutritionScreenModa
                                 <Text style={styles.hintText}>
                                     {selectedFood
                                         ? quantityLabel +
-                                            " serving" +
-                                            (quantityValue > 1 ? "s" : "") +
-                                            " at " +
-                                            roundOne(servingPerQuantity) +
-                                            " " +
-                                            basisUnit +
-                                            " per serving = " +
-                                            estimatedTotalAmount +
-                                            " " +
-                                            basisUnit
+                                        " serving" +
+                                        (quantityValue > 1 ? "s" : "") +
+                                        " at " +
+                                        roundOne(servingPerQuantity) +
+                                        " " +
+                                        basisUnit +
+                                        " per serving = " +
+                                        estimatedTotalAmount +
+                                        " " +
+                                        basisUnit
                                         : "Select a food result to see estimated amount for your selected quantity."}
                                 </Text>
                             </View>
@@ -410,13 +438,6 @@ export default function NutritionScreenModal({ controller }: NutritionScreenModa
                         </Text>
 
                         <View style={styles.modalActions}>
-                            <AppButton
-                                title="Cancel"
-                                variant="secondary"
-                                onPress={actions.onClose}
-                                disabled={isSaving}
-                            />
-
                             <AppButton
                                 title={submitLabel ?? "Add Entry"}
                                 onPress={actions.handleAddEntry}

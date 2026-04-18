@@ -19,8 +19,8 @@ import {
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { Pizza, Flame, Lightbulb, Target } from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import { getTodayDateKey, loadDailyNutritionLog } from "../services/nutritionLog";
-
+import { loadDailyNutritionLog } from "../services/nutritionLog";
+import { getTodayDateKey } from "@/services/helperFunctions";
 import { auth } from "../services/firebase";
 import {
   getUserFriendlyErrorMessage,
@@ -366,17 +366,6 @@ export default function HomeScreen({
                   <Text style={styles.metricValue}>{isLoadingCaloriesIntake ? 0 : caloriesIntake}</Text>
                 </View>
                 <Text style={styles.metricLabel}>Calories intake</Text>
-              </View>
-            </View>
-
-            <View style={styles.goalSection}>
-              <Text style={styles.metricLabel}>Goal progress</Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: goalProgressBarWidth }]} />
-              </View>
-              <View style={styles.progressValueRow}>
-                <Target size={16} color={appTheme.colors.mutedText} strokeWidth={2.2} />
-                <Text style={styles.progressCaption}>{goalProgressLabel} of daily goal</Text>
               </View>
             </View>
           </AppCard>

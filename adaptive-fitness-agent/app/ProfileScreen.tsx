@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { User } from "firebase/auth/react-native";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, Firestore, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Pencil } from "lucide-react-native";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -128,6 +128,52 @@ function parseProfileFromFirestore(raw: unknown): ProfileFormData {
     };
 }
 
+type FirestoreProfilePayload = ReturnType<typeof toFirestoreProfilePayload>;
+
+function arStringArraysEqual(left: string[], right: string[]){
+    if(left.length !== right.length){
+        return false;
+    }
+    for(let i = 0; i < left.length; i++){
+        if (left[i] !== right[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function arProfileValuesEqual(left: FirestoreProfilePayload[keyof FirestoreProfilePayload], right: FirestoreProfilePayload[keyof FirestoreProfilePayload]){
+    const leftIsArray = Array.isArray(left);
+    const rightIsArray = Array.isArray(right);
+    if(leftIsArray || rightIsArray){
+        if(!leftIsArray || !rightIsArray){
+            return false;
+        }
+        return arStringArraysEqual(left as string[], right as string[]);
+    }
+    return left === right;
+}
+
+function setPartialProfileValue<K extends keyof FirestoreProfilePayload>(
+    target: Partial<FirestoreProfilePayload>,
+    key: K,
+    value: FirestoreProfilePayload[K],
+){  
+    target[key] = value;
+}
+
+function buildPartialProfilePayload(currentProfile : ProfileFormData, nextProfile : ProfileFormData): Partial<FirestoreProfilePayload>{
+    const current = toFirestoreProfilePayload(currentProfile);
+    const next = toFirestoreProfilePayload(nextProfile);
+    const partial: Partial<FirestoreProfilePayload> = {};
+    (Object.keys(next) as Array<keyof FirestoreProfilePayload>).forEach((key) => {
+        if(!arProfileValuesEqual(current[key], next[key])){
+            setPartialProfileValue(partial, key, next[key]);
+        }
+    });
+    return partial;
+}
+
 function normalizeCsvToArray(value: string) {
     return value
         .split(",")
@@ -195,49 +241,58 @@ export default function ProfileScreen({ user }: ProfileScreenProps) {
     const saveProfile = useCallback(
         async (nextProfile: ProfileFormData, successTitle?: string) => {
             setIsSaving(true);
+            try{
+                const currentDisplayName = profile.name.trim() || user.displayName || null;
+                const nextDisplayName = nextProfile.name.trim() || user.displayName || null;
+                const partialProfile = buildPartialProfilePayload(profile, nextProfile);
+                const hasProfileChanges = Object.keys(partialProfile).length > 0;
+                const hasDisplayNameChange = currentDisplayName !== nextDisplayName;
+                
+                if(!hasProfileChanges && !hasDisplayNameChange){
+                    if(successTitle){
+                        showAlert({title: successTitle, message: "No changes to save"});
+                    }
+                    return true;
+                }
+                const useRef = doc(db, "users", user.uid);
+                const patch: Record<string, unknown> = {
+                    profileUpdatedAt: serverTimestamp(),
+                }
+                if(hasProfileChanges){
+                    patch.profile = partialProfile;
+                }
+                if(hasDisplayNameChange){
+                    patch.displayName = nextDisplayName;
+                }
+                patch.email = user.email?? null;
 
-            try {
-                const userRef = doc(db, "users", user.uid);
-                await withTimeout(
-                    setDoc(
-                        userRef,
-                        {
-                            profile: toFirestoreProfilePayload(nextProfile),
-                            displayName: nextProfile.name.trim() || user.displayName || null,
-                            email: user.email ?? null,
-                            profileUpdatedAt: serverTimestamp(),
-                        },
-                        { merge: true },
-                    ),
+                await  withTimeout(
+                    setDoc(useRef, patch, { merge: true}),
                     FIRESTORE_SAVE_TIMEOUT_MS,
                 );
-
-                if (successTitle) {
-                    showAlert({ title: successTitle, message: "Saved Changes" });
+                if(successTitle){
+                    showAlert({title: successTitle, message: "Saved changes"});
                 }
-
                 return true;
-            } catch (error) {
+            } catch(error) {
                 const errorText = error instanceof Error ? error.message : "";
-                const message =
-                    /save-timeout/i.test(errorText)
-                        ? "Couldn't reach Firestore in time. Check your internet and try again."
-                        : getUserFriendlyErrorMessage(
-                            error,
-                            "We couldn't save your profile right now. Please try again.",
-                        );
+                const message = /save-timeout/i.test(errorText) ? 
+                "Couldn't reach Firestore in time. Check your internet and try again."
+                : getUserFriendlyErrorMessage(
+                    error,
+                    "We coultn't save you profile right now. Please try again."
+                );
 
                 showAlert({
                     title: "Couldn't save profile",
-                    message,
-                });
+                    message
+                })
 
                 return false;
             } finally {
                 setIsSaving(false);
             }
-        },
-        [showAlert, user.displayName, user.email, user.uid],
+        }, [profile, showAlert, user.displayName, user.email, user.uid]
     );
 
     useEffect(() => {

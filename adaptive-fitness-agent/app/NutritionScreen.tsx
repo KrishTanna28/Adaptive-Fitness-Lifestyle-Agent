@@ -23,7 +23,6 @@ import {
   type MealType,
 } from "../services/nutritionApi";
 import {
-  getTodayDateKey,
   loadDailyNutritionLog,
   upsertLoggedFoodEntry,
   deleteLoggedFoodEntry,
@@ -33,8 +32,8 @@ import { appTheme } from "../theme/designSystem";
 import { globalStyles } from "../theme/globalStyles";
 import { styles } from "./NutritionScreen.styles";
 import NutritionEntryDetailModal from "./NutritionEntryDetailModal";
-
-import NutritionDatePickerModal from "./NutritionDatePickerModal";
+import { getTodayDateKey } from "../services/helperFunctions"
+import DatePickerModal from "./DatePickerModal";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
 const MEAL_LABELS: Record<MealType, string> = {
@@ -1000,7 +999,7 @@ export default function NutritionScreen() {
           ) : null}
         </View>
       </ScrollView>
-      <NutritionDatePickerModal
+      <DatePickerModal
         visible={isDatePickerVisible}
         selectedDateKey={selectedDateKey}
         onSelectDate={setSelectedDateKey}

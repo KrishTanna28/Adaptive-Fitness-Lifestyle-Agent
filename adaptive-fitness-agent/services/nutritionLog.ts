@@ -5,10 +5,11 @@ import {
     getDocs,
     serverTimestamp,
     setDoc,
-    writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { FoodSource, MealType } from "./nutritionApi";
+import { toNumber } from "./helperFunctions";
+
 
 export type LoggedFoodEntry = {
     id: string;
@@ -33,11 +34,6 @@ export type LoggedFoodEntry = {
 type DailyNutritionLog = {
     dateKey: string,
     entries: LoggedFoodEntry[]
-}
-
-function toNumber(value: unknown, fallback = 0) {
-    const n = typeof value === "number" ? value : Number(value);
-    return Number.isFinite(n) ? n : fallback;
 }
 
 function normalizeEntry(raw: Partial<LoggedFoodEntry>): LoggedFoodEntry {
@@ -98,13 +94,6 @@ function sortByLoggedAt(entries: LoggedFoodEntry[]) {
     return [...entries].sort((a, b) => a.loggedAt.localeCompare(b.loggedAt));
 }
 
-export function getTodayDateKey(date = new Date()) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
 export async function loadDailyNutritionLog(
     uid: string,
     dateKey: string
@@ -161,3 +150,4 @@ export async function deleteLoggedFoodEntry(
         ),
     ]);
 }
+

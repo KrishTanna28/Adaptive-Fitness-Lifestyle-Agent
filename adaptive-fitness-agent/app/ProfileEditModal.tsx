@@ -221,7 +221,7 @@ export default function ProfileEditModal({
             />
 
             <AppTextField
-              label="Allergies (comma separated)"
+              label="Allergies (comma separated) (optional)"
               value={draftProfile.allergies}
               onChangeText={(value) =>
                 onChangeDraft((prev) => ({ ...prev, allergies: value }))
@@ -239,7 +239,7 @@ export default function ProfileEditModal({
             />
 
             <AppTextField
-              label="Injuries (e.g., knee pain)"
+              label="Injuries (e.g., knee pain) (optional)"
               value={draftProfile.injuries}
               onChangeText={(value) =>
                 onChangeDraft((prev) => ({ ...prev, injuries: value }))
